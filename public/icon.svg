@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="brandGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#4F46E5"/>
+      <stop offset="50%" stop-color="#6366F1"/>
+      <stop offset="100%" stop-color="#818CF8"/>
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#4338CA" flood-opacity="0.3"/>
+    </filter>
+  </defs>
+
+  <!-- Background circle/rounded squircle -->
+  <rect width="512" height="512" rx="128" fill="url(#brandGrad)"/>
+
+  <!-- Subtle inner background wave -->
+  <path d="M 0,380 Q 256,430 512,380 L 512,512 L 0,512 Z" fill="#4338CA" opacity="0.4"/>
+
+  <!-- Group for Logo -->
+  <g transform="translate(256, 250)" filter="url(#shadow)">
+    <!-- House outline -->
+    <path d="M 0,-130 L 140,-10 L 140,110 Q 140,130 120,130 L -120,130 Q -140,130 -140,110 L -140,-10 Z" 
+          fill="none" stroke="#FFFFFF" stroke-width="20" stroke-linecap="round" stroke-linejoin="round"/>
+    
+    <!-- Heart above family -->
+    <path d="M 0,-50 C -12,-65 -35,-55 -35,-35 C -35,-15 -10,10 0,22 C 10,10 35,-15 35,-35 C 35,-55 12,-65 0,-50 Z" 
+          fill="#EC4899"/>
+
+    <!-- Green leaves decoration left & right -->
+    <path d="M -125,70 Q -160,50 -170,10 Q -140,10 -115,50 Z" fill="#10B981"/>
+    <path d="M 125,70 Q 160,50 170,10 Q 140,10 115,50 Z" fill="#10B981"/>
+
+    <!-- Family: Dad, Mom, Child -->
+    <!-- Dad (left) -->
+    <circle cx="-55" cy="40" r="22" fill="#FFFFFF"/>
+    <path d="M -85,115 C -85,85 -65,72 -55,72 C -45,72 -25,85 -25,115 Z" fill="#C7D2FE"/>
+
+    <!-- Mom (right) -->
+    <circle cx="55" cy="40" r="22" fill="#FFFFFF"/>
+    <path d="M 25,115 C 25,85 45,72 55,72 C 65,72 85,85 85,115 Z" fill="#67E8F9"/>
+
+    <!-- Child (middle) -->
+    <circle cx="0" cy="55" r="17" fill="#FFFFFF"/>
+    <path d="M -22,120 C -22,95 -8,85 0,85 C 8,85 22,95 22,120 Z" fill="#F472B6"/>
+  </g>
+</svg>

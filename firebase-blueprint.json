@@ -1,0 +1,284 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Family member user profile and role assignment",
+      "type": "object",
+      "properties": {
+        "email": {
+          "type": "string",
+          "description": "User email address",
+          "format": "email"
+        },
+        "displayName": {
+          "type": "string",
+          "description": "Full name of family member",
+          "maxLength": 100
+        },
+        "role": {
+          "type": "string",
+          "description": "Role in the family",
+          "enum": ["admin", "user"]
+        },
+        "isActive": {
+          "type": "boolean",
+          "description": "Whether the user account is active"
+        },
+        "photoUrl": {
+          "type": "string",
+          "description": "Avatar URL or preset identifier",
+          "maxLength": 500
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Creation timestamp",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Last update timestamp",
+          "format": "date-time"
+        }
+      },
+      "required": ["email", "displayName", "role", "isActive"]
+    },
+    "FamilySetting": {
+      "title": "FamilySetting",
+      "description": "General family settings and currency configuration",
+      "type": "object",
+      "properties": {
+        "familyName": {
+          "type": "string",
+          "description": "Family group name",
+          "maxLength": 100
+        },
+        "currency": {
+          "type": "string",
+          "description": "Default currency symbol or code",
+          "maxLength": 10
+        },
+        "dateFormat": {
+          "type": "string",
+          "description": "Preferred date format",
+          "maxLength": 30
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp of modification",
+          "format": "date-time"
+        }
+      },
+      "required": ["familyName", "currency"]
+    },
+    "Expense": {
+      "title": "Expense",
+      "description": "An individual family expense record",
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string",
+          "description": "Title of expense",
+          "maxLength": 150
+        },
+        "amount": {
+          "type": "number",
+          "description": "Expense monetary amount"
+        },
+        "category": {
+          "type": "string",
+          "description": "Category name",
+          "maxLength": 50
+        },
+        "date": {
+          "type": "string",
+          "description": "Date of the expense",
+          "format": "date"
+        },
+        "paidBy": {
+          "type": "string",
+          "description": "User ID of who paid",
+          "maxLength": 128
+        },
+        "paidByName": {
+          "type": "string",
+          "description": "Name of who paid",
+          "maxLength": 100
+        },
+        "paymentMethod": {
+          "type": "string",
+          "description": "Payment method used",
+          "enum": ["Cash", "UPI", "Bank Transfer", "Card", "Other"]
+        },
+        "description": {
+          "type": "string",
+          "description": "Optional details or notes",
+          "maxLength": 500
+        },
+        "receiptUrl": {
+          "type": "string",
+          "description": "Receipt attachment data or URL",
+          "maxLength": 500000
+        },
+        "createdBy": {
+          "type": "string",
+          "description": "User ID who recorded the expense",
+          "maxLength": 128
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Creation timestamp",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Update timestamp",
+          "format": "date-time"
+        }
+      },
+      "required": ["title", "amount", "category", "date", "paidBy", "paymentMethod", "createdBy"]
+    },
+    "Deposit": {
+      "title": "Deposit",
+      "description": "Deposit or contribution made to the family fund",
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string",
+          "description": "Deposit title or description",
+          "maxLength": 150
+        },
+        "amount": {
+          "type": "number",
+          "description": "Deposit monetary amount"
+        },
+        "depositedBy": {
+          "type": "string",
+          "description": "User ID who contributed",
+          "maxLength": 128
+        },
+        "depositedByName": {
+          "type": "string",
+          "description": "Name of contributor",
+          "maxLength": 100
+        },
+        "date": {
+          "type": "string",
+          "description": "Date of deposit",
+          "format": "date"
+        },
+        "paymentMethod": {
+          "type": "string",
+          "description": "Payment method used",
+          "enum": ["Cash", "UPI", "Bank Transfer", "Card", "Other"]
+        },
+        "description": {
+          "type": "string",
+          "description": "Optional remarks",
+          "maxLength": 500
+        },
+        "createdBy": {
+          "type": "string",
+          "description": "User ID who recorded deposit",
+          "maxLength": 128
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Creation timestamp",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Update timestamp",
+          "format": "date-time"
+        }
+      },
+      "required": ["title", "amount", "depositedBy", "date", "paymentMethod", "createdBy"]
+    },
+    "Category": {
+      "title": "Category",
+      "description": "Expense category definition",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Category display name",
+          "maxLength": 50
+        },
+        "icon": {
+          "type": "string",
+          "description": "Lucide icon identifier",
+          "maxLength": 50
+        },
+        "color": {
+          "type": "string",
+          "description": "Hex color code",
+          "maxLength": 20
+        },
+        "isDefault": {
+          "type": "boolean",
+          "description": "Whether system default category"
+        }
+      },
+      "required": ["name", "icon", "color"]
+    },
+    "ActivityLog": {
+      "title": "ActivityLog",
+      "description": "Audit log of actions performed by members",
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string",
+          "description": "Action performed (e.g., ADD_EXPENSE, DELETE_DEPOSIT)",
+          "maxLength": 50
+        },
+        "details": {
+          "type": "string",
+          "description": "Description of the action",
+          "maxLength": 300
+        },
+        "userId": {
+          "type": "string",
+          "description": "User ID who performed action",
+          "maxLength": 128
+        },
+        "userName": {
+          "type": "string",
+          "description": "User display name",
+          "maxLength": 100
+        },
+        "timestamp": {
+          "type": "string",
+          "description": "Event timestamp",
+          "format": "date-time"
+        }
+      },
+      "required": ["action", "details", "userId", "userName", "timestamp"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User accounts and role metadata"
+    },
+    "/familySettings/{settingId}": {
+      "schema": "FamilySetting",
+      "description": "Family-wide configuration and preferences"
+    },
+    "/expenses/{expenseId}": {
+      "schema": "Expense",
+      "description": "Family expense records"
+    },
+    "/deposits/{depositId}": {
+      "schema": "Deposit",
+      "description": "Family fund deposit records"
+    },
+    "/categories/{categoryId}": {
+      "schema": "Category",
+      "description": "Customizable expense categories"
+    },
+    "/activityLogs/{logId}": {
+      "schema": "ActivityLog",
+      "description": "Audit and activity trail"
+    }
+  }
+}

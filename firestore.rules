@@ -1,0 +1,52 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128;
+    }
+
+    // Family Member Accounts
+    match /users/{userId} {
+      allow get, list: if true;
+      allow create, update, delete: if isValidId(userId);
+    }
+
+    // Family-wide General Settings
+    match /familySettings/{settingId} {
+      allow get, list: if true;
+      allow write: if isValidId(settingId);
+    }
+
+    // Family Expenses
+    match /expenses/{expenseId} {
+      allow get, list: if true;
+      allow create, update, delete: if isValidId(expenseId);
+    }
+
+    // Family Deposits
+    match /deposits/{depositId} {
+      allow get, list: if true;
+      allow create, update, delete: if isValidId(depositId);
+    }
+
+    // Expense Categories
+    match /categories/{categoryId} {
+      allow get, list: if true;
+      allow create, update, delete: if isValidId(categoryId);
+    }
+
+    // Activity Logs
+    match /activityLogs/{logId} {
+      allow get, list: if true;
+      allow create: if isValidId(logId);
+      allow update, delete: if false;
+    }
+
+    // Default fallback deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
