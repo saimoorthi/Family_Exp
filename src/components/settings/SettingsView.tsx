@@ -316,16 +316,40 @@ export const SettingsView: React.FC = () => {
     setDeletingMember(null);
   };
 
-  // Search Lucide Icons for Add form
+  // Search Lucide Icons for Add form (Pulls from all 1400+ Lucide icons)
   const handleSearchIcons = (q: string) => {
     setIconSearchQuery(q);
-    setFetchedIcons(searchLucideIcons(q));
+    const results = searchLucideIcons(q);
+    setFetchedIcons(results);
+    if (q.trim() && results.length > 0) {
+      const cleanQ = q.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+      const exact = results.find(
+        (r) =>
+          r.name.toLowerCase() === cleanQ ||
+          r.label.toLowerCase().startsWith(q.trim().toLowerCase())
+      );
+      if (exact) {
+        setNewCatIcon(exact.name);
+      }
+    }
   };
 
-  // Search Lucide Icons for Edit form
+  // Search Lucide Icons for Edit form (Pulls from all 1400+ Lucide icons)
   const handleEditSearchIcons = (q: string) => {
     setEditIconSearchQuery(q);
-    setEditFetchedIcons(searchLucideIcons(q));
+    const results = searchLucideIcons(q);
+    setEditFetchedIcons(results);
+    if (q.trim() && results.length > 0) {
+      const cleanQ = q.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+      const exact = results.find(
+        (r) =>
+          r.name.toLowerCase() === cleanQ ||
+          r.label.toLowerCase().startsWith(q.trim().toLowerCase())
+      );
+      if (exact) {
+        setEditCatIcon(exact.name);
+      }
+    }
   };
 
   // Add Category
@@ -1719,7 +1743,7 @@ export const SettingsView: React.FC = () => {
                         type="text"
                         value={editIconSearchQuery}
                         onChange={(e) => handleEditSearchIcons(e.target.value)}
-                        placeholder="e.g. brush, clean, car, fuel, shopping..."
+                        placeholder="Type any name from lucide.dev (e.g. spray-can, anvil, cookie)..."
                         className="w-full bg-white border border-slate-200 rounded-xl pl-8 pr-3 py-2 text-xs"
                       />
                     </div>
@@ -1838,7 +1862,7 @@ export const SettingsView: React.FC = () => {
                         type="text"
                         value={iconSearchQuery}
                         onChange={(e) => handleSearchIcons(e.target.value)}
-                        placeholder="e.g. brush, cleaning, car, fuel, coffee..."
+                        placeholder="Type any name from lucide.dev (e.g. spray-can, anvil, cookie)..."
                         className="w-full bg-white border border-slate-200 rounded-xl pl-8 pr-3 py-2 text-xs"
                       />
                     </div>

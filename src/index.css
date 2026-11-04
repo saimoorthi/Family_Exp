@@ -34,10 +34,10 @@
     opacity: 0;
   }
   15% {
-    opacity: var(--snow-opacity, 0.25);
+    opacity: var(--snow-opacity, 0.35);
   }
   85% {
-    opacity: var(--snow-opacity, 0.25);
+    opacity: var(--snow-opacity, 0.35);
   }
   100% {
     transform: translateY(105vh) translateX(var(--snow-sway, 25px)) rotate(var(--snow-rot, 35deg));

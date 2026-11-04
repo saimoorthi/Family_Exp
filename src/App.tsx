@@ -14,6 +14,7 @@ import { SettingsView } from './components/settings/SettingsView';
 import { ExpenseModal } from './components/expenses/ExpenseModal';
 import { DepositModal } from './components/deposits/DepositModal';
 import { AppLockScreen } from './components/common/AppLockScreen';
+import { OfflineStatusBanner } from './components/common/OfflineStatusBanner';
 import { ActiveTab } from './types';
 import { testConnection } from './lib/firebase';
 import { checkAndSeedInitialData } from './lib/seedSampleData';
@@ -133,6 +134,9 @@ function MainAppContent() {
           onOpenAddExpense={() => setIsAddExpenseOpen(true)}
           onOpenAddDeposit={() => setIsAddDepositOpen(true)}
         />
+
+        {/* Floating Non-Intrusive Offline Connectivity Banner */}
+        <OfflineStatusBanner />
 
         {/* Tab Module Views */}
         <main className="flex-1 mt-4">

@@ -1,156 +1,146 @@
 import React from 'react';
-import {
-  ShoppingBag,
-  Zap,
-  Droplets,
-  Home,
-  HeartPulse,
-  Car,
-  Tag,
-  GraduationCap,
-  Plane,
-  Film,
-  MoreHorizontal,
-  Coffee,
-  Smartphone,
-  Gift,
-  Briefcase,
-  Shield,
-  Utensils,
-  ReceiptIndianRupee,
-  Brush,
-  Sparkles,
-  Paintbrush,
-  Wrench,
-  Hammer,
-  Scissors,
-  Shirt,
-  Baby,
-  Dog,
-  Cat,
-  Fuel,
-  Tv,
-  Gamepad2,
-  Dumbbell,
-  Bike,
-  Bus,
-  Train,
-  Truck,
-  HeartHandshake,
-  Activity,
-  Pill,
-  Stethoscope,
-  UtensilsCrossed,
-  Pizza,
-  ShoppingCart,
-  Store,
-  Wallet,
-  CreditCard,
-  Coins,
-  Landmark,
-  BookOpen,
-  Book,
-  FileText,
-  Laptop,
-  Wifi,
-  Music,
-  Headphones,
-  Camera,
-  Ticket,
-  Building,
-  Hotel,
-  Bath,
-  Bed,
-  Flame,
-  Sun,
-  CloudRain,
-  PartyPopper,
-  Cake,
-  Smile,
-  Heart,
-  Package,
-  Box,
-  Lightbulb,
-  Clock,
-  Key,
-  ShieldCheck,
-  LucideIcon,
-} from 'lucide-react';
+import * as LucideIcons from 'lucide-react';
+import { LucideIcon } from 'lucide-react';
 
-export const ICON_REGISTRY: Record<string, { icon: LucideIcon; label: string; keywords: string[] }> = {
-  // Cleaning & Home Maintenance
-  Brush: { icon: Brush, label: 'Brush / Cleaning', keywords: ['brush', 'clean', 'cleaning', 'wash', 'sweep', 'scrub'] },
-  Sparkles: { icon: Sparkles, label: 'Sparkles / Hygiene', keywords: ['clean', 'cleaning', 'shine', 'hygiene', 'sparkle', 'maid'] },
-  Paintbrush: { icon: Paintbrush, label: 'Paintbrush / Decor', keywords: ['paint', 'decor', 'art', 'renovation', 'home'] },
-  Wrench: { icon: Wrench, label: 'Wrench / Repairs', keywords: ['repair', 'tool', 'plumbing', 'mechanic', 'fix'] },
-  Hammer: { icon: Hammer, label: 'Hammer / Construction', keywords: ['hammer', 'carpenter', 'hardware', 'construction', 'tools'] },
-  Scissors: { icon: Scissors, label: 'Scissors / Grooming', keywords: ['salon', 'haircut', 'barber', 'tailor', 'grooming'] },
+const EXCLUDED_KEYS = new Set([
+  'createLucideIcon',
+  'default',
+  'icons',
+  'LucideIcon',
+  'LucideProps',
+  'IconNode',
+]);
 
-  // Food & Dining
-  Utensils: { icon: Utensils, label: 'Dining / Food', keywords: ['food', 'lunch', 'dinner', 'restaurant', 'meal', 'eat'] },
-  UtensilsCrossed: { icon: UtensilsCrossed, label: 'Cooking / Kitchen', keywords: ['cook', 'cooking', 'chef', 'kitchen', 'food'] },
-  Coffee: { icon: Coffee, label: 'Coffee / Tea / Snacks', keywords: ['coffee', 'tea', 'cafe', 'breakfast', 'snacks', 'drink'] },
-  Pizza: { icon: Pizza, label: 'Fast Food / Pizza', keywords: ['pizza', 'burger', 'fastfood', 'takeout', 'party'] },
-  Cake: { icon: Cake, label: 'Cake / Bakery', keywords: ['cake', 'bakery', 'sweets', 'dessert', 'birthday'] },
+/**
+ * All valid, dynamically discovered Lucide Icon Component names from lucide-react (1400+ icons)
+ */
+export const ALL_LUCIDE_KEYS: string[] = Object.keys(LucideIcons).filter((key) => {
+  if (EXCLUDED_KEYS.has(key)) return false;
+  if (!/^[A-Z]/.test(key)) return false;
+  const val = (LucideIcons as Record<string, any>)[key];
+  return (
+    typeof val === 'function' ||
+    (typeof val === 'object' && val !== null && ('render' in val || '$$typeof' in val))
+  );
+});
 
-  // Groceries & Shopping
-  ShoppingBag: { icon: ShoppingBag, label: 'Groceries / Bags', keywords: ['groceries', 'supermarket', 'market', 'provisions', 'shopping'] },
-  ShoppingCart: { icon: ShoppingCart, label: 'Shopping Cart', keywords: ['cart', 'mall', 'store', 'buy', 'online'] },
-  Store: { icon: Store, label: 'Local Store / Shop', keywords: ['store', 'kirana', 'merchant', 'shop'] },
-  Tag: { icon: Tag, label: 'Shopping / Tag', keywords: ['shopping', 'clothes', 'discount', 'fashion', 'tag'] },
-  Package: { icon: Package, label: 'Delivery / Parcels', keywords: ['courier', 'delivery', 'amazon', 'parcel', 'package'] },
+/**
+ * Convert any string (kebab-case, snake_case, spaces) to PascalCase
+ * e.g. "spray-can" -> "SprayCan", "car-taxi-front" -> "CarTaxiFront"
+ */
+export function toPascalCase(str: string): string {
+  if (!str) return '';
+  return str
+    .trim()
+    .replace(/[-_\s]+(.)?/g, (_, c) => (c ? c.toUpperCase() : ''))
+    .replace(/^(.)/, (c) => c.toUpperCase());
+}
 
-  // Transportation & Vehicles
-  Car: { icon: Car, label: 'Car / Cab / Ride', keywords: ['car', 'uber', 'ola', 'cab', 'taxi', 'drive', 'auto'] },
-  Fuel: { icon: Fuel, label: 'Petrol / Diesel / Fuel', keywords: ['fuel', 'petrol', 'diesel', 'gas', 'cng', 'station'] },
-  Bike: { icon: Bike, label: 'Bike / Two Wheeler', keywords: ['bike', 'motorcycle', 'scooter', 'bicycle'] },
-  Bus: { icon: Bus, label: 'Bus / Public Transport', keywords: ['bus', 'transit', 'commute', 'metro', 'fare'] },
-  Train: { icon: Train, label: 'Train / Railway', keywords: ['train', 'railway', 'irctc', 'metro'] },
-  Plane: { icon: Plane, label: 'Flights / Air Travel', keywords: ['flight', 'airline', 'airport', 'holiday', 'trip'] },
+/**
+ * Convert PascalCase to lucide.dev kebab-case format
+ * e.g. "SprayCan" -> "spray-can", "CarTaxiFront" -> "car-taxi-front"
+ */
+export function pascalToKebab(str: string): string {
+  if (!str) return '';
+  return str
+    .replace(/([a-z0-9])([A-Z])/g, '$1-$2')
+    .replace(/([a-zA-Z])([0-9])/g, '$1-$2')
+    .toLowerCase();
+}
 
-  // Housing & Utilities
-  Home: { icon: Home, label: 'House / Rent', keywords: ['rent', 'house', 'maintenance', 'apartment', 'flat'] },
-  Zap: { icon: Zap, label: 'Electricity / Power', keywords: ['electricity', 'power', 'eb', 'current', 'light', 'bill'] },
-  Droplets: { icon: Droplets, label: 'Water / Utilities', keywords: ['water', 'plumbing', 'can', 'tanker', 'utility'] },
-  Flame: { icon: Flame, label: 'Gas / Heating / LPG', keywords: ['gas', 'cylinder', 'lpg', 'heating', 'flame'] },
-  Lightbulb: { icon: Lightbulb, label: 'Lighting / Electricals', keywords: ['bulb', 'lighting', 'electronics', 'hardware'] },
-
-  // Health & Medical
-  HeartPulse: { icon: HeartPulse, label: 'Medical / Healthcare', keywords: ['hospital', 'doctor', 'clinic', 'medical', 'emergency'] },
-  Pill: { icon: Pill, label: 'Medicines / Pharmacy', keywords: ['pill', 'tablet', 'pharmacy', 'chemist', 'drugs'] },
-  Stethoscope: { icon: Stethoscope, label: 'Doctor Consultation', keywords: ['doctor', 'checkup', 'physician', 'specialist'] },
-  Heart: { icon: Heart, label: 'Wellness / Care', keywords: ['health', 'care', 'fitness', 'wellness', 'donation'] },
-
-  // Family, Pets & Kids
-  Baby: { icon: Baby, label: 'Baby / Kids', keywords: ['baby', 'infant', 'child', 'diaper', 'toys'] },
-  Dog: { icon: Dog, label: 'Dog / Pet Care', keywords: ['dog', 'pet', 'puppy', 'vet', 'animal'] },
-  Cat: { icon: Cat, label: 'Cat / Pets', keywords: ['cat', 'kitten', 'pet', 'vet'] },
-  Shirt: { icon: Shirt, label: 'Clothes / Laundry', keywords: ['clothes', 'laundry', 'dryclean', 'apparel', 'iron'] },
-
-  // Education & Work
-  GraduationCap: { icon: GraduationCap, label: 'Education / College', keywords: ['school', 'college', 'tuition', 'degree', 'fees'] },
-  BookOpen: { icon: BookOpen, label: 'Books / Stationary', keywords: ['book', 'stationary', 'library', 'study', 'course'] },
-  Laptop: { icon: Laptop, label: 'Computer / Office', keywords: ['laptop', 'pc', 'hardware', 'software', 'work'] },
-  Briefcase: { icon: Briefcase, label: 'Work / Business', keywords: ['work', 'office', 'job', 'business', 'tax'] },
-
-  // Entertainment & Leisure
-  Film: { icon: Film, label: 'Movies / Cinema', keywords: ['movie', 'theatre', 'cinema', 'ott', 'netflix'] },
-  Tv: { icon: Tv, label: 'TV / Cable / DTH', keywords: ['tv', 'television', 'cable', 'dish', 'dth'] },
-  Gamepad2: { icon: Gamepad2, label: 'Gaming / Recreation', keywords: ['game', 'gaming', 'playstation', 'hobby'] },
-  Music: { icon: Music, label: 'Music / Concert', keywords: ['music', 'song', 'spotify', 'concert'] },
-  Dumbbell: { icon: Dumbbell, label: 'Gym / Sports / Fitness', keywords: ['gym', 'fitness', 'workout', 'sports', 'exercise'] },
-
-  // Finance, Gifts & Others
-  ReceiptIndianRupee: { icon: ReceiptIndianRupee, label: 'Rupee / Bills / Taxes', keywords: ['rupee', 'bill', 'tax', 'receipt', 'charge'] },
-  Wallet: { icon: Wallet, label: 'Wallet / Pocket Money', keywords: ['wallet', 'cash', 'allowance', 'money'] },
-  CreditCard: { icon: CreditCard, label: 'Credit Card / EMI', keywords: ['card', 'emi', 'loan', 'swipe'] },
-  Smartphone: { icon: Smartphone, label: 'Mobile / Recharge / Net', keywords: ['mobile', 'phone', 'recharge', 'data', 'internet'] },
-  Wifi: { icon: Wifi, label: 'Broadband / Wi-Fi', keywords: ['wifi', 'broadband', 'router', 'fiber', 'internet'] },
-  Gift: { icon: Gift, label: 'Gifts / Presents', keywords: ['gift', 'present', 'festive', 'celebration', 'wedding'] },
-  PartyPopper: { icon: PartyPopper, label: 'Party / Events', keywords: ['party', 'event', 'function', 'festival', 'celebration'] },
-  Shield: { icon: Shield, label: 'Insurance / Security', keywords: ['insurance', 'policy', 'lic', 'security', 'protection'] },
-  MoreHorizontal: { icon: MoreHorizontal, label: 'Other / Miscellaneous', keywords: ['other', 'misc', 'general', 'etc'] },
+/**
+ * Semantic keyword aliases mapping common english category search words to real Lucide icons
+ */
+const KEYWORD_MAP: Record<string, string[]> = {
+  clean: ['Brush', 'Sparkles', 'SprayCan', 'WashingMachine', 'Paintbrush', 'Bath'],
+  cleaning: ['Brush', 'Sparkles', 'SprayCan', 'WashingMachine', 'Bath'],
+  brush: ['Brush', 'Paintbrush'],
+  food: ['Utensils', 'UtensilsCrossed', 'Pizza', 'Coffee', 'Apple', 'Cake', 'Sandwich', 'Soup', 'CookingPot'],
+  grocery: ['ShoppingBag', 'ShoppingCart', 'Store', 'Apple', 'Carrot', 'Milk'],
+  groceries: ['ShoppingBag', 'ShoppingCart', 'Store', 'Apple', 'Carrot', 'Milk'],
+  fruit: ['Apple', 'Cherry', 'Banana'],
+  medical: ['HeartPulse', 'Stethoscope', 'Pill', 'Syringe', 'Hospital', 'Activity'],
+  health: ['HeartPulse', 'Heart', 'Stethoscope', 'Pill', 'Activity', 'Dumbbell'],
+  doctor: ['Stethoscope', 'Hospital', 'HeartPulse', 'Pill'],
+  gym: ['Dumbbell', 'Activity', 'Bike', 'HeartPulse'],
+  fitness: ['Dumbbell', 'Activity', 'Bike', 'HeartPulse'],
+  travel: ['Plane', 'Train', 'Bus', 'Car', 'Hotel', 'Luggage', 'Compass'],
+  car: ['Car', 'CarFront', 'CarTaxiFront', 'CableCar', 'Fuel'],
+  cab: ['CarTaxiFront', 'Car', 'CarFront'],
+  taxi: ['CarTaxiFront', 'Car'],
+  fuel: ['Fuel', 'Flame', 'Zap'],
+  pet: ['Dog', 'Cat', 'Fish', 'Bird'],
+  pets: ['Dog', 'Cat', 'Fish', 'Bird'],
+  bill: ['Receipt', 'ReceiptIndianRupee', 'FileText', 'Zap', 'Droplets'],
+  bills: ['Receipt', 'ReceiptIndianRupee', 'FileText', 'Zap', 'Droplets'],
+  shopping: ['ShoppingBag', 'ShoppingCart', 'Tag', 'Store', 'Package'],
+  clothes: ['Shirt', 'Scissors', 'Sparkles'],
+  cloth: ['Shirt', 'Scissors'],
+  home: ['Home', 'Bed', 'Bath', 'Sofa', 'Lamp', 'Tv', 'DoorClosed'],
+  house: ['Home', 'Bed', 'Bath', 'Sofa', 'Lamp'],
+  money: ['Wallet', 'Coins', 'CreditCard', 'Landmark', 'Banknote', 'ReceiptIndianRupee'],
+  cash: ['Wallet', 'Coins', 'CreditCard', 'Banknote', 'ReceiptIndianRupee'],
+  education: ['GraduationCap', 'Book', 'BookOpen', 'Laptop', 'School'],
+  school: ['GraduationCap', 'Book', 'BookOpen', 'School'],
+  entertainment: ['Film', 'Tv', 'Gamepad2', 'Music', 'Ticket', 'PartyPopper'],
+  gaming: ['Gamepad2', 'Gamepad', 'Tv'],
+  game: ['Gamepad2', 'Gamepad', 'Tv'],
+  utilities: ['Zap', 'Droplets', 'Flame', 'Lightbulb', 'Wifi'],
+  electric: ['Zap', 'Lightbulb', 'Plug', 'Power'],
+  water: ['Droplets', 'Bath', 'ShowerHead'],
 };
+
+// Popular starter icons for default display
+const POPULAR_STARTER_ICONS = [
+  'ShoppingBag',
+  'ShoppingCart',
+  'Utensils',
+  'UtensilsCrossed',
+  'Coffee',
+  'Pizza',
+  'Cake',
+  'Brush',
+  'Sparkles',
+  'SprayCan',
+  'WashingMachine',
+  'Home',
+  'Car',
+  'CarTaxiFront',
+  'Fuel',
+  'Bike',
+  'Bus',
+  'Train',
+  'Plane',
+  'Zap',
+  'Droplets',
+  'Flame',
+  'Lightbulb',
+  'HeartPulse',
+  'Pill',
+  'Stethoscope',
+  'Dumbbell',
+  'Baby',
+  'Dog',
+  'Cat',
+  'Shirt',
+  'GraduationCap',
+  'BookOpen',
+  'Laptop',
+  'Film',
+  'Tv',
+  'Gamepad2',
+  'Music',
+  'ReceiptIndianRupee',
+  'Wallet',
+  'CreditCard',
+  'Wifi',
+  'Gift',
+  'PartyPopper',
+  'Shield',
+  'Tag',
+  'Package',
+  'MoreHorizontal',
+];
 
 interface CategoryIconProps {
   name: string;
@@ -165,52 +155,128 @@ export const CategoryIcon: React.FC<CategoryIconProps> = ({
   color,
   size = 20,
 }) => {
-  // Normalize lookup: case-insensitive, strip hyphens/spaces
-  const cleanKey = (name || '').replace(/[-_\s]/g, '').toLowerCase();
-
-  const foundEntry = Object.entries(ICON_REGISTRY).find(([key]) => {
-    return key.toLowerCase() === cleanKey;
-  });
-
-  if (foundEntry) {
-    const IconComponent = foundEntry[1].icon;
-    return <IconComponent className={className} size={size} style={color ? { color } : undefined} />;
+  const all = LucideIcons as Record<string, any>;
+  if (!name) {
+    const Fallback = all.Tag || all.FolderTree;
+    return <Fallback className={className} size={size} style={color ? { color } : undefined} />;
   }
 
-  // Fallback icon
-  const Fallback = ReceiptIndianRupee;
+  // 1. Direct key match (e.g. "SprayCan" or "Brush")
+  let Comp = all[name];
+
+  // 2. PascalCase conversion (e.g. "spray-can" -> "SprayCan")
+  if (!Comp) {
+    const pascal = toPascalCase(name);
+    Comp = all[pascal];
+  }
+
+  // 3. Case-insensitive lookup across all 1400+ Lucide keys
+  if (!Comp) {
+    const clean = name.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+    const matchedKey = ALL_LUCIDE_KEYS.find((k) => k.toLowerCase() === clean);
+    if (matchedKey) {
+      Comp = all[matchedKey];
+    }
+  }
+
+  if (Comp && (typeof Comp === 'function' || typeof Comp === 'object')) {
+    return <Comp className={className} size={size} style={color ? { color } : undefined} />;
+  }
+
+  // 4. Default Fallback
+  const Fallback = all.Tag || all.FolderTree;
   return <Fallback className={className} size={size} style={color ? { color } : undefined} />;
 };
 
 export interface SearchedIconItem {
-  name: string;
-  label: string;
+  name: string; // PascalCase component name (stored in category item)
+  label: string; // lucide.dev kebab name
 }
 
 /**
- * Helper function to search/fetch Lucide icons based on user input keyword
+ * Dynamically search and pull from the complete Lucide library (1400+ icons)
+ * Supports:
+ * - Exact lucide.dev kebab-case names: e.g. "spray-can", "car-taxi-front", "cookie", "anvil"
+ * - Component names: e.g. "SprayCan", "CarTaxiFront"
+ * - Partial search keywords: e.g. "car", "clean", "brush", "spray", "gym", "food"
  */
 export function searchLucideIcons(query: string): SearchedIconItem[] {
-  const q = (query || '').trim().toLowerCase().replace(/[-_]/g, ' ');
-  const entries = Object.entries(ICON_REGISTRY);
+  const raw = (query || '').trim();
+  const cleanQ = raw.toLowerCase().replace(/[^a-z0-9]/g, '');
 
-  if (!q) {
-    return entries.slice(0, 16).map(([name, data]) => ({
+  // If query is empty, return popular starter icons
+  if (!cleanQ) {
+    return POPULAR_STARTER_ICONS.filter((name) => ALL_LUCIDE_KEYS.includes(name)).map((name) => ({
       name,
-      label: data.label,
+      label: `${pascalToKebab(name)} (${name})`,
     }));
   }
 
-  return entries
-    .filter(([key, data]) => {
-      const keyMatch = key.toLowerCase().includes(q) || q.includes(key.toLowerCase());
-      const labelMatch = data.label.toLowerCase().includes(q);
-      const keywordMatch = data.keywords.some((kw) => kw.includes(q) || q.includes(kw));
-      return keyMatch || labelMatch || keywordMatch;
-    })
-    .map(([name, data]) => ({
-      name,
-      label: data.label,
-    }));
+  const results: SearchedIconItem[] = [];
+  const added = new Set<string>();
+
+  const addMatch = (key: string) => {
+    if (!added.has(key) && ALL_LUCIDE_KEYS.includes(key)) {
+      added.add(key);
+      results.push({
+        name: key,
+        label: `${pascalToKebab(key)} (${key})`,
+      });
+    }
+  };
+
+  // 1. Exact match from query (either kebab or pascal)
+  // e.g. user typed "spray-can" or "spraycan" or "SprayCan"
+  const pascalInput = toPascalCase(raw);
+  if (ALL_LUCIDE_KEYS.includes(pascalInput)) {
+    addMatch(pascalInput);
+  }
+
+  // Exact lowercase match
+  for (const key of ALL_LUCIDE_KEYS) {
+    if (key.toLowerCase() === cleanQ) {
+      addMatch(key);
+    }
+  }
+
+  // 2. Starts with query (e.g. "car" -> "Car", "CarFront", "CarTaxiFront"...)
+  for (const key of ALL_LUCIDE_KEYS) {
+    if (results.length >= 60) break;
+    const lowerKey = key.toLowerCase();
+    const kebab = pascalToKebab(key);
+    if (lowerKey.startsWith(cleanQ) || kebab.startsWith(raw.toLowerCase())) {
+      addMatch(key);
+    }
+  }
+
+  // 3. Keyword Semantic Aliases (e.g. "cleaning" -> Brush, Sparkles, SprayCan...)
+  if (KEYWORD_MAP[cleanQ]) {
+    for (const alias of KEYWORD_MAP[cleanQ]) {
+      if (results.length >= 60) break;
+      addMatch(alias);
+    }
+  }
+
+  // Also check if any KEYWORD_MAP key is contained in cleanQ or vice-versa
+  Object.entries(KEYWORD_MAP).forEach(([kw, aliases]) => {
+    if (results.length >= 60) return;
+    if (cleanQ.includes(kw) || kw.includes(cleanQ)) {
+      aliases.forEach((alias) => addMatch(alias));
+    }
+  });
+
+  // 4. Substring / Includes match across all 1400+ Lucide icons
+  for (const key of ALL_LUCIDE_KEYS) {
+    if (results.length >= 60) break;
+    const lowerKey = key.toLowerCase();
+    const kebab = pascalToKebab(key);
+    if (lowerKey.includes(cleanQ) || kebab.includes(raw.toLowerCase())) {
+      addMatch(key);
+    }
+  }
+
+  return results;
 }
 
+// Backwards-compatible export
+export const ICON_REGISTRY: Record<string, { icon: LucideIcon; label: string; keywords: string[] }> = {};

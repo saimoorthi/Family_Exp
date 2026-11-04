@@ -69,8 +69,8 @@ export const HouseholdSnowfall: React.FC = () => {
       const duration = 8 + (i % 6) * 1.5; // 8s to 15.5s
       // Negative delays stagger the initial animation so screen is filled immediately
       const delay = -((i * 1.3) % duration);
-      const size = 15 + (i % 5) * 2; // 15px to 23px
-      const opacity = 0.15 + (i % 4) * 0.05; // 0.15 to 0.30
+      const size = 16 + (i % 5) * 2; // 16px to 24px
+      const opacity = 0.25 + (i % 4) * 0.05; // 0.25 to 0.40 (increased visibility by 10%)
       const sway = (i % 2 === 0 ? 1 : -1) * (15 + (i % 4) * 5); // -30px to 30px
       const rotation = (i % 2 === 0 ? 1 : -1) * (20 + (i % 5) * 10);
       const colorClass = greyscaleClasses[i % greyscaleClasses.length];

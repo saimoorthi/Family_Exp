@@ -426,7 +426,16 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       doc(db, 'familySettings', 'general'),
       (docSnap) => {
         if (docSnap.exists()) {
-          setFamilySettings(docSnap.data() as FamilySettings);
+          const data = docSnap.data() as FamilySettings;
+          setFamilySettings(data);
+          try {
+            localStorage.setItem('family_settings_cache', JSON.stringify(data));
+            if (data.appVersion) {
+              localStorage.setItem('family_app_version', data.appVersion);
+            }
+          } catch {
+            // ignore
+          }
         } else {
           // Initialize defaults
           setDoc(doc(db, 'familySettings', 'general'), {
@@ -972,6 +981,14 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const updateFamilySettings = async (settings: Partial<FamilySettings>): Promise<boolean> => {
     const updated = { ...familySettings, ...settings, updatedAt: new Date().toISOString() };
     setFamilySettings(updated);
+    try {
+      localStorage.setItem('family_settings_cache', JSON.stringify(updated));
+      if (updated.appVersion) {
+        localStorage.setItem('family_app_version', updated.appVersion);
+      }
+    } catch {
+      // ignore
+    }
     try {
       await setDoc(doc(db, 'familySettings', 'general'), updated, { merge: true });
       logActivity('UPDATE_SETTINGS', 'Updated family settings');

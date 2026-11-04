@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   X,
   Upload,
@@ -26,13 +26,47 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
   onClose,
   expenseToEdit,
 }) => {
-  const { categories, paymentMethods, members, addExpense, updateExpense } = useData();
+  const { categories, paymentMethods, members, addExpense, updateExpense, expenses } = useData();
   const { userProfile, isAdmin } = useAuth();
+
+  // Categories sorted alphabetically in ascending order (A to Z)
+  const sortedCategories = useMemo(() => {
+    return [...categories].sort((a, b) =>
+      a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })
+    );
+  }, [categories]);
+
+  // Frequently used categories calculated from real expense frequency
+  const frequentlyUsedCategories = useMemo(() => {
+    if (!expenses || expenses.length === 0) {
+      return sortedCategories.slice(0, 4);
+    }
+    const countMap: Record<string, number> = {};
+    expenses.forEach((e) => {
+      const catName = e.category?.trim();
+      if (catName) {
+        countMap[catName.toLowerCase()] = (countMap[catName.toLowerCase()] || 0) + 1;
+      }
+    });
+
+    const scored = categories
+      .map((cat) => ({
+        cat,
+        count: countMap[cat.name.toLowerCase()] || 0,
+      }))
+      .filter((item) => item.count > 0)
+      .sort((a, b) => b.count - a.count);
+
+    if (scored.length > 0) {
+      return scored.slice(0, 4).map((item) => item.cat);
+    }
+    return sortedCategories.slice(0, 4);
+  }, [expenses, categories, sortedCategories]);
 
   const [date, setDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [amount, setAmount] = useState('');
   const [title, setTitle] = useState('');
-  const [category, setCategory] = useState(categories[0]?.name || 'Groceries');
+  const [category, setCategory] = useState(expenseToEdit?.category || '');
   const [paidBy, setPaidBy] = useState(userProfile?.id || '');
   const [paymentMethod, setPaymentMethod] = useState<string>('Cash');
   const [description, setDescription] = useState('');
@@ -59,7 +93,7 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
       setDate(new Date().toISOString().split('T')[0]);
       setAmount('');
       setTitle('');
-      setCategory(categories[0]?.name || 'Groceries');
+      setCategory('');
       setPaidBy(userProfile?.id || members[0]?.id || '');
       setPaymentMethod(userProfile?.defaultPaymentMethod || 'Cash');
       setDescription('');
@@ -105,6 +139,10 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
     }
     if (!title.trim()) {
       setError('Please provide an expense title');
+      return;
+    }
+    if (!category || category === 'Select Category') {
+      setError('Please select an expense category');
       return;
     }
 
@@ -259,12 +297,14 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
                   <span
                     className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full shrink-0"
                     style={{
-                      backgroundColor:
-                        categories.find((c) => c.name.toLowerCase() === category.toLowerCase())?.color ||
-                        '#F43F5E',
+                      backgroundColor: category
+                        ? categories.find((c) => c.name.toLowerCase() === category.toLowerCase())?.color || '#F43F5E'
+                        : '#CBD5E1',
                     }}
                   />
-                  <span className="truncate">{category || 'Select Category'}</span>
+                  <span className={`truncate ${!category ? 'text-slate-400 font-normal' : 'text-slate-800 font-semibold'}`}>
+                    {category || 'Select Category'}
+                  </span>
                 </div>
                 <ChevronDown
                   className={`w-3.5 h-3.5 text-slate-400 shrink-0 transition-transform ${
@@ -274,33 +314,75 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
               </button>
 
               {showCategoryDropdown && (
-                <div className="absolute left-0 right-0 top-full mt-1.5 bg-white rounded-xl shadow-xl border border-slate-100 py-1.5 z-50 max-h-52 overflow-y-auto animate-in fade-in zoom-in-95">
-                  {categories.map((cat) => (
-                    <button
-                      key={cat.id}
-                      type="button"
-                      onClick={() => {
-                        setCategory(cat.name);
-                        setShowCategoryDropdown(false);
-                      }}
-                      className={`w-full text-left px-3 py-2 text-xs font-semibold transition flex items-center justify-between cursor-pointer ${
-                        category === cat.name
-                          ? 'bg-rose-50 text-rose-700 font-bold'
-                          : 'text-slate-700 hover:bg-slate-50'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2 truncate">
-                        <span
-                          className="w-2.5 h-2.5 rounded-full shrink-0"
-                          style={{ backgroundColor: cat.color }}
-                        />
-                        <span className="truncate">{cat.name}</span>
-                      </div>
-                      {category === cat.name && (
-                        <CheckCircle2 className="w-3.5 h-3.5 text-rose-600 shrink-0" />
-                      )}
-                    </button>
-                  ))}
+                <div className="absolute left-0 top-full mt-1.5 w-[250px] sm:w-[280px] max-w-[calc(100vw-3rem)] bg-white rounded-xl shadow-2xl border border-slate-200/90 py-1.5 z-50 max-h-64 overflow-y-auto animate-in fade-in zoom-in-95">
+                  {/* Frequently Used Categories */}
+                  {frequentlyUsedCategories.length > 0 && (
+                    <div className="pb-1">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-3 pt-1.5 pb-1 block">
+                        Frequently Used
+                      </span>
+                      {frequentlyUsedCategories.map((cat) => (
+                        <button
+                          key={`freq-${cat.id}`}
+                          type="button"
+                          onClick={() => {
+                            setCategory(cat.name);
+                            setShowCategoryDropdown(false);
+                          }}
+                          className={`w-full text-left px-3 py-2 text-xs font-semibold transition flex items-center justify-between cursor-pointer ${
+                            category === cat.name
+                              ? 'bg-rose-50 text-rose-700 font-bold'
+                              : 'text-slate-700 hover:bg-slate-50'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2 min-w-0 pr-1">
+                            <span
+                              className="w-2.5 h-2.5 rounded-full shrink-0"
+                              style={{ backgroundColor: cat.color }}
+                            />
+                            <span className="truncate">{cat.name}</span>
+                          </div>
+                          {category === cat.name && (
+                            <CheckCircle2 className="w-3.5 h-3.5 text-rose-600 shrink-0 ml-1.5" />
+                          )}
+                        </button>
+                      ))}
+                      <div className="my-1 border-t border-slate-100" />
+                    </div>
+                  )}
+
+                  {/* All Categories in Alphabetical Ascending Order */}
+                  <div>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-3 pt-1 pb-1 block">
+                      All Categories (A–Z)
+                    </span>
+                    {sortedCategories.map((cat) => (
+                      <button
+                        key={cat.id}
+                        type="button"
+                        onClick={() => {
+                          setCategory(cat.name);
+                          setShowCategoryDropdown(false);
+                        }}
+                        className={`w-full text-left px-3 py-2 text-xs font-semibold transition flex items-center justify-between cursor-pointer ${
+                          category === cat.name
+                            ? 'bg-rose-50 text-rose-700 font-bold'
+                            : 'text-slate-700 hover:bg-slate-50'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2 min-w-0 pr-1">
+                          <span
+                            className="w-2.5 h-2.5 rounded-full shrink-0"
+                            style={{ backgroundColor: cat.color }}
+                          />
+                          <span className="truncate">{cat.name}</span>
+                        </div>
+                        {category === cat.name && (
+                          <CheckCircle2 className="w-3.5 h-3.5 text-rose-600 shrink-0 ml-1.5" />
+                        )}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>

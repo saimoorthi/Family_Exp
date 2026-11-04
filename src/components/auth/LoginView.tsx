@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { User, Lock, Eye, EyeOff, AlertCircle, ShieldCheck } from 'lucide-react';
+import { doc, onSnapshot } from 'firebase/firestore';
+import { db } from '../../lib/firebase';
 import { useAuth } from '../../context/AuthContext';
 import { HouseholdSnowfall } from './HouseholdSnowfall';
 
@@ -11,6 +13,47 @@ export const LoginView: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
   const [localError, setLocalError] = useState<string | null>(null);
+
+  // Dynamic App Version synced with Settings
+  const [appVersion, setAppVersion] = useState<string>(() => {
+    try {
+      const saved = localStorage.getItem('family_app_version');
+      if (saved) return saved;
+      const cached = localStorage.getItem('family_settings_cache');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (parsed?.appVersion) return parsed.appVersion;
+      }
+    } catch {
+      // ignore
+    }
+    return '1.0.0';
+  });
+
+  // Synchronize app version in real-time from Firestore familySettings
+  useEffect(() => {
+    const unsubscribe = onSnapshot(
+      doc(db, 'familySettings', 'general'),
+      (docSnap) => {
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          if (data?.appVersion) {
+            setAppVersion(data.appVersion);
+            try {
+              localStorage.setItem('family_app_version', data.appVersion);
+            } catch {
+              // ignore
+            }
+          }
+        }
+      },
+      () => {
+        // Fallback silently if offline
+      }
+    );
+
+    return () => unsubscribe();
+  }, []);
 
   // Load remembered username
   useEffect(() => {
@@ -181,7 +224,7 @@ export const LoginView: React.FC = () => {
           <div className="mt-5 flex flex-col items-center justify-center text-center select-none">
             <div className="flex items-center justify-center gap-1.5 text-[11px] text-slate-400 font-medium">
               <ShieldCheck className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-              <span>256-bit encrypted • Version 1.1</span>
+              <span>256-bit encrypted • Version {appVersion}</span>
             </div>
             <p className="text-[11px] text-slate-400 font-medium mt-1">
               Made by KK for Tharkuri
