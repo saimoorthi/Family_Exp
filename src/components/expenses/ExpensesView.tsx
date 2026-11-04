@@ -15,6 +15,7 @@ import {
   Filter,
   Tag,
   User,
+  CheckCircle2,
 } from 'lucide-react';
 import { Expense } from '../../types';
 import { useData } from '../../context/DataContext';
@@ -60,6 +61,10 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({ onOpenAddModal }) =>
   const [viewingExpense, setViewingExpense] = useState<Expense | null>(null);
   const [previewReceipt, setPreviewReceipt] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  // Filter dropdown menus state
+  const [showCategoryFilterDropdown, setShowCategoryFilterDropdown] = useState(false);
+  const [showMemberFilterDropdown, setShowMemberFilterDropdown] = useState(false);
 
   // Reset to page 1 whenever filters change
   useEffect(() => {
@@ -140,7 +145,7 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({ onOpenAddModal }) =>
       </div>
 
       {/* 2. Responsive Filter Card */}
-      <div className="bg-white rounded-3xl p-4 sm:p-5 shadow-xs border border-slate-100 space-y-3.5">
+      <div className="bg-white rounded-2xl p-4 sm:p-5 shadow-xs border border-slate-100 space-y-3.5">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700">
             <Filter className="w-3.5 h-3.5 text-slate-400" />
@@ -160,7 +165,7 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({ onOpenAddModal }) =>
         {/* Filter Controls: 2 columns on mobile, 4 on desktop */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 sm:gap-3">
           {/* From Date */}
-          <div className="bg-slate-50 border border-slate-200/90 rounded-2xl p-2.5 focus-within:ring-2 focus-within:ring-rose-500/20 focus-within:border-rose-400 focus-within:bg-white transition">
+          <div className="bg-slate-50 border border-slate-200/90 rounded-xl p-2.5 focus-within:ring-2 focus-within:ring-rose-500/20 focus-within:border-rose-400 focus-within:bg-white transition">
             <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
               From Date
             </label>
@@ -176,7 +181,7 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({ onOpenAddModal }) =>
           </div>
 
           {/* To Date */}
-          <div className="bg-slate-50 border border-slate-200/90 rounded-2xl p-2.5 focus-within:ring-2 focus-within:ring-rose-500/20 focus-within:border-rose-400 focus-within:bg-white transition">
+          <div className="bg-slate-50 border border-slate-200/90 rounded-xl p-2.5 focus-within:ring-2 focus-within:ring-rose-500/20 focus-within:border-rose-400 focus-within:bg-white transition">
             <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
               To Date
             </label>
@@ -191,56 +196,148 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({ onOpenAddModal }) =>
             </div>
           </div>
 
-          {/* Category Dropdown */}
-          <div className="bg-slate-50 border border-slate-200/90 rounded-2xl p-2.5 focus-within:ring-2 focus-within:ring-rose-500/20 focus-within:border-rose-400 focus-within:bg-white transition relative">
+          {/* Category Dropdown (Unified in-app dropdown) */}
+          <div className="bg-slate-50 border border-slate-200/90 rounded-xl p-2.5 focus-within:ring-2 focus-within:ring-rose-500/20 focus-within:border-rose-400 focus-within:bg-white transition relative">
             <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
               Category
             </label>
-            <div className="flex items-center gap-1.5 relative">
-              <Tag className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-              <select
-                value={selectedCategory}
-                onChange={(e) => setSelectedCategory(e.target.value)}
-                className="w-full appearance-none bg-transparent text-slate-800 font-semibold text-xs focus:outline-none cursor-pointer pr-5 truncate"
-              >
-                <option value="ALL">All Categories</option>
-                {categories.map((c) => (
-                  <option key={c.id} value={c.name}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-0 pointer-events-none" />
-            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setShowCategoryFilterDropdown(!showCategoryFilterDropdown);
+                setShowMemberFilterDropdown(false);
+              }}
+              className="w-full flex items-center justify-between text-left text-slate-800 font-semibold text-xs cursor-pointer focus:outline-none"
+            >
+              <div className="flex items-center gap-1.5 truncate">
+                <Tag className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                <span className="truncate">
+                  {selectedCategory === 'ALL' ? 'All Categories' : selectedCategory}
+                </span>
+              </div>
+              <ChevronDown
+                className={`w-3.5 h-3.5 text-slate-400 shrink-0 transition-transform ${
+                  showCategoryFilterDropdown ? 'rotate-180' : ''
+                }`}
+              />
+            </button>
+
+            {showCategoryFilterDropdown && (
+              <div className="absolute left-0 right-0 top-full mt-1.5 bg-white rounded-xl shadow-xl border border-slate-100 py-1.5 z-40 max-h-56 overflow-y-auto animate-in fade-in zoom-in-95">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedCategory('ALL');
+                    setShowCategoryFilterDropdown(false);
+                  }}
+                  className={`w-full text-left px-3 py-2 text-xs font-semibold transition flex items-center justify-between cursor-pointer ${
+                    selectedCategory === 'ALL'
+                      ? 'bg-rose-50 text-rose-600 font-bold'
+                      : 'text-slate-700 hover:bg-slate-50'
+                  }`}
+                >
+                  <span>All Categories</span>
+                  {selectedCategory === 'ALL' && <CheckCircle2 className="w-3.5 h-3.5 text-rose-600" />}
+                </button>
+                {categories.map((c) => {
+                  const isSelected = selectedCategory === c.name;
+                  return (
+                    <button
+                      key={c.id}
+                      type="button"
+                      onClick={() => {
+                        setSelectedCategory(c.name);
+                        setShowCategoryFilterDropdown(false);
+                      }}
+                      className={`w-full text-left px-3 py-2 text-xs font-semibold transition flex items-center justify-between cursor-pointer ${
+                        isSelected
+                          ? 'bg-rose-50 text-rose-600 font-bold'
+                          : 'text-slate-700 hover:bg-slate-50'
+                      }`}
+                    >
+                      <span className="truncate">{c.name}</span>
+                      {isSelected && <CheckCircle2 className="w-3.5 h-3.5 text-rose-600 shrink-0" />}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
-          {/* Member Dropdown */}
-          <div className="bg-slate-50 border border-slate-200/90 rounded-2xl p-2.5 focus-within:ring-2 focus-within:ring-rose-500/20 focus-within:border-rose-400 focus-within:bg-white transition relative">
+          {/* Member Dropdown (Unified in-app dropdown) */}
+          <div className="bg-slate-50 border border-slate-200/90 rounded-xl p-2.5 focus-within:ring-2 focus-within:ring-rose-500/20 focus-within:border-rose-400 focus-within:bg-white transition relative">
             <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
               Paid By
             </label>
-            <div className="flex items-center gap-1.5 relative">
-              <User className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-              <select
-                value={selectedMember}
-                onChange={(e) => setSelectedMember(e.target.value)}
-                className="w-full appearance-none bg-transparent text-slate-800 font-semibold text-xs focus:outline-none cursor-pointer pr-5 truncate"
-              >
-                <option value="ALL">All Members</option>
-                {members.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.displayName}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-0 pointer-events-none" />
-            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setShowMemberFilterDropdown(!showMemberFilterDropdown);
+                setShowCategoryFilterDropdown(false);
+              }}
+              className="w-full flex items-center justify-between text-left text-slate-800 font-semibold text-xs cursor-pointer focus:outline-none"
+            >
+              <div className="flex items-center gap-1.5 truncate">
+                <User className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                <span className="truncate">
+                  {selectedMember === 'ALL'
+                    ? 'All Members'
+                    : members.find((m) => m.id === selectedMember)?.displayName || selectedMember}
+                </span>
+              </div>
+              <ChevronDown
+                className={`w-3.5 h-3.5 text-slate-400 shrink-0 transition-transform ${
+                  showMemberFilterDropdown ? 'rotate-180' : ''
+                }`}
+              />
+            </button>
+
+            {showMemberFilterDropdown && (
+              <div className="absolute left-0 right-0 top-full mt-1.5 bg-white rounded-xl shadow-xl border border-slate-100 py-1.5 z-40 max-h-56 overflow-y-auto animate-in fade-in zoom-in-95">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedMember('ALL');
+                    setShowMemberFilterDropdown(false);
+                  }}
+                  className={`w-full text-left px-3 py-2 text-xs font-semibold transition flex items-center justify-between cursor-pointer ${
+                    selectedMember === 'ALL'
+                      ? 'bg-rose-50 text-rose-600 font-bold'
+                      : 'text-slate-700 hover:bg-slate-50'
+                  }`}
+                >
+                  <span>All Members</span>
+                  {selectedMember === 'ALL' && <CheckCircle2 className="w-3.5 h-3.5 text-rose-600" />}
+                </button>
+                {members.map((m) => {
+                  const isSelected = selectedMember === m.id;
+                  return (
+                    <button
+                      key={m.id}
+                      type="button"
+                      onClick={() => {
+                        setSelectedMember(m.id);
+                        setShowMemberFilterDropdown(false);
+                      }}
+                      className={`w-full text-left px-3 py-2 text-xs font-semibold transition flex items-center justify-between cursor-pointer ${
+                        isSelected
+                          ? 'bg-rose-50 text-rose-600 font-bold'
+                          : 'text-slate-700 hover:bg-slate-50'
+                      }`}
+                    >
+                      <span className="truncate">{m.displayName}</span>
+                      {isSelected && <CheckCircle2 className="w-3.5 h-3.5 text-rose-600 shrink-0" />}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </div>
       </div>
 
       {/* 3. Summary Stat Strip */}
-      <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-3 sm:p-3.5 flex items-center justify-between text-xs text-slate-700 font-medium">
+      <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-3 sm:p-3.5 flex items-center justify-between text-xs text-slate-700 font-medium">
         <span>
           Showing <strong className="text-slate-900 font-extrabold">{totalCount}</strong> expenses
           {fromDate && toDate && (
@@ -481,7 +578,7 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({ onOpenAddModal }) =>
       {/* 5. View Expense Modal (Eye Icon - Detailed view + Remarks + Edit History) */}
       {viewingExpense && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-3 sm:p-4 animate-in fade-in">
-          <div className="w-full max-w-lg rounded-3xl bg-white p-5 sm:p-6 shadow-2xl relative max-h-[92vh] overflow-y-auto">
+          <div className="w-full max-w-lg rounded-2xl bg-white p-5 sm:p-6 shadow-2xl relative max-h-[92vh] overflow-y-auto">
             <button
               onClick={() => setViewingExpense(null)}
               className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 p-1 cursor-pointer"

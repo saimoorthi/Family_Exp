@@ -28,9 +28,15 @@ export const BottomNav: React.FC<BottomNavProps> = ({ currentTab, onTabChange })
         {navItems.map((item) => {
           const isActive = currentTab === item.id;
           const isExpense = item.id === 'expenses';
+          const isDeposit = item.id === 'deposits';
+          const isReports = item.id === 'reports';
           const Icon = item.icon;
           const activeClasses = isExpense
             ? 'bg-rose-600 text-white px-3.5 py-1.5 rounded-2xl shadow-md shadow-rose-500/25 scale-105'
+            : isDeposit
+            ? 'bg-emerald-600 text-white px-3.5 py-1.5 rounded-2xl shadow-md shadow-emerald-500/25 scale-105'
+            : isReports
+            ? 'bg-[#006466] text-white px-3.5 py-1.5 rounded-2xl shadow-md shadow-[#006466]/25 scale-105'
             : 'bg-[#4F46E5] text-white px-3.5 py-1.5 rounded-2xl shadow-md shadow-indigo-500/20 scale-105';
           return (
             <button

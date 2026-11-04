@@ -1,4 +1,4 @@
-import { CategoryItem, PaymentMethodItem } from '../types';
+import { CategoryItem, PaymentMethodItem, DepositTypeItem, FamilySettings } from '../types';
 
 export const DEFAULT_CATEGORIES: CategoryItem[] = [
   { id: 'cat-groceries', name: 'Groceries', icon: 'ShoppingBag', color: '#F59E0B', isDefault: true },
@@ -22,6 +22,16 @@ export const DEFAULT_PAYMENT_METHODS: PaymentMethodItem[] = [
   { id: 'pm-other', name: 'Other', isDefault: false },
 ];
 
+export const DEFAULT_DEPOSIT_TYPES: DepositTypeItem[] = [
+  { id: 'dt-salary', name: 'Salary', isDefault: true },
+  { id: 'dt-contribution', name: 'Contribution', isDefault: true },
+  { id: 'dt-rental', name: 'Rental Income', isDefault: true },
+  { id: 'dt-dividend', name: 'Dividend', isDefault: true },
+  { id: 'dt-business', name: 'Business', isDefault: true },
+  { id: 'dt-gift', name: 'Gift', isDefault: true },
+  { id: 'dt-other', name: 'Other', isDefault: true },
+];
+
 export const PAYMENT_METHODS = [
   'Cash',
   'UPI',
@@ -34,8 +44,13 @@ export const SUPPORTED_CURRENCIES = [
   { symbol: '₹', code: 'INR', label: 'Indian Rupee (₹)' },
 ];
 
-export const DEFAULT_FAMILY_SETTINGS = {
+export const DEFAULT_FAMILY_SETTINGS: FamilySettings = {
   familyName: 'Our Family',
   currency: '₹',
   dateFormat: 'DD-MM-YY',
+  appVersion: '1.0.0',
+  aboutDescription:
+    'Designed exclusively for family members to record daily expenses, track deposits and contributions, and preserve family financial wellness with offline synchronisation.',
+  releaseNotes:
+    'Initial release featuring multi-member ledger, offline PWA capability, instant analytics, deposit tracking, customizable payment methods and deposit types.',
 };

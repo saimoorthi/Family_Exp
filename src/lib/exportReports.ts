@@ -3,83 +3,95 @@ import * as XLSX from 'xlsx';
 import { Expense, Deposit, CategoryItem, UserProfile } from '../types';
 import { formatDate } from './dateUtils';
 
-interface ExportReportData {
+export interface ExpenseExportFilterParams {
   familyName: string;
   currency: string;
   dateRangeLabel: string;
+  categoryFilter: string;
+  paidByFilter: string;
+  paymentMethodFilter: string;
   expenses: Expense[];
-  deposits: Deposit[];
   categories: CategoryItem[];
   members: UserProfile[];
 }
 
-export function exportToExcel(data: ExportReportData) {
+export interface DepositExportFilterParams {
+  familyName: string;
+  currency: string;
+  dateRangeLabel: string;
+  depositTypeFilter: string;
+  depositByFilter: string;
+  deposits: Deposit[];
+  members: UserProfile[];
+}
+
+// ==========================================
+// 1. EXPENSE REPORT - EXCEL EXPORT
+// ==========================================
+export function exportExpenseReportToExcel(data: ExpenseExportFilterParams) {
   const wb = XLSX.utils.book_new();
 
-  // 1. Summary Sheet
   const totalExpenses = data.expenses.reduce((s, e) => s + (Number(e.amount) || 0), 0);
-  const totalDeposits = data.deposits.reduce((s, d) => s + (Number(d.amount) || 0), 0);
-  const netSavings = totalDeposits - totalExpenses;
+  const avgExpense = data.expenses.length > 0 ? totalExpenses / data.expenses.length : 0;
 
+  // Summary Sheet
   const summaryRows = [
-    ['Family Expense Management - Financial Report'],
+    ['Family Expense Tracker - Expense Report'],
     ['Family Name', data.familyName],
-    ['Report Period', data.dateRangeLabel],
+    ['Period', data.dateRangeLabel],
     ['Generated On', new Date().toLocaleString()],
     [],
-    ['Financial Metric', `Amount (${data.currency})`],
-    ['Total Deposits (Inflow)', totalDeposits],
-    ['Total Expenses (Outflow)', totalExpenses],
-    ['Net Savings / Balance', netSavings],
-    ['Savings Rate %', totalDeposits > 0 ? `${Math.round((netSavings / totalDeposits) * 100)}%` : '0%'],
+    ['Filters Applied'],
+    ['Category Filter', data.categoryFilter],
+    ['Paid By Filter', data.paidByFilter],
+    ['Payment Method Filter', data.paymentMethodFilter],
+    [],
+    ['Summary Metric', `Value (${data.currency})`],
+    ['Total Filtered Expenses', totalExpenses],
+    ['Transaction Count', data.expenses.length],
+    ['Average Expense', Math.round(avgExpense * 100) / 100],
   ];
   const wsSummary = XLSX.utils.aoa_to_sheet(summaryRows);
-  XLSX.utils.book_append_sheet(wb, wsSummary, 'Executive Summary');
+  XLSX.utils.book_append_sheet(wb, wsSummary, 'Expense Summary');
 
-  // 2. Expenses Sheet
+  // Detailed Transactions Sheet
   const expenseRows = data.expenses.map((e) => ({
     'Date': formatDate(e.date),
-    'Title': e.title,
+    'Expense Title': e.title,
     'Category': e.category,
-    [`Amount (${data.currency})`]: e.amount,
+    [`Amount (${data.currency})`]: Number(e.amount) || 0,
     'Paid By': e.paidByName,
-    'Payment Method': e.paymentMethod,
-    'Description': e.description || '',
+    'Payment Method': e.paymentMethod || 'Cash',
+    'Description / Remarks': e.description || '',
   }));
   const wsExpenses = XLSX.utils.json_to_sheet(expenseRows);
-  XLSX.utils.book_append_sheet(wb, wsExpenses, 'Expenses');
+  XLSX.utils.book_append_sheet(wb, wsExpenses, 'Detailed Expenses');
 
-  // 3. Deposits Sheet
-  const depositRows = data.deposits.map((d) => ({
-    'Date': formatDate(d.date),
-    'Title': d.title,
-    [`Amount (${data.currency})`]: d.amount,
-    'Deposited By': d.depositedByName,
-    'Payment Method': d.paymentMethod,
-    'Description': d.description || '',
-  }));
-  const wsDeposits = XLSX.utils.json_to_sheet(depositRows);
-  XLSX.utils.book_append_sheet(wb, wsDeposits, 'Deposits');
-
-  // 4. Category Breakdown Sheet
-  const catMap: Record<string, number> = {};
+  // Category Breakdown Sheet
+  const catMap: Record<string, { count: number; total: number }> = {};
   data.expenses.forEach((e) => {
-    catMap[e.category] = (catMap[e.category] || 0) + (Number(e.amount) || 0);
+    const cat = e.category || 'Other';
+    if (!catMap[cat]) catMap[cat] = { count: 0, total: 0 };
+    catMap[cat].count += 1;
+    catMap[cat].total += Number(e.amount) || 0;
   });
-  const catRows = Object.entries(catMap).map(([cat, amt]) => ({
+  const catRows = Object.entries(catMap).map(([cat, stat]) => ({
     'Category': cat,
-    [`Total (${data.currency})`]: amt,
-    'Percentage': totalExpenses > 0 ? `${((amt / totalExpenses) * 100).toFixed(1)}%` : '0%',
+    'Transactions': stat.count,
+    [`Total Amount (${data.currency})`]: stat.total,
+    'Percentage': totalExpenses > 0 ? `${((stat.total / totalExpenses) * 100).toFixed(1)}%` : '0%',
   }));
   const wsCategories = XLSX.utils.json_to_sheet(catRows);
   XLSX.utils.book_append_sheet(wb, wsCategories, 'Category Breakdown');
 
-  // Save File
-  const filename = `${data.familyName.replace(/\s+/g, '_')}_Report_${new Date().toISOString().split('T')[0]}.xlsx`;
+  const filename = `${data.familyName.replace(/\s+/g, '_')}_Expense_Report_${new Date().toISOString().split('T')[0]}.xlsx`;
   XLSX.writeFile(wb, filename);
 }
 
-export function exportToPDF(data: ExportReportData) {
+// ==========================================
+// 2. EXPENSE REPORT - PDF EXPORT
+// ==========================================
+export function exportExpenseReportToPDF(data: ExpenseExportFilterParams) {
   const doc = new jsPDF({
     orientation: 'portrait',
     unit: 'mm',
@@ -87,33 +99,267 @@ export function exportToPDF(data: ExportReportData) {
   });
 
   const totalExpenses = data.expenses.reduce((s, e) => s + (Number(e.amount) || 0), 0);
-  const totalDeposits = data.deposits.reduce((s, d) => s + (Number(d.amount) || 0), 0);
-  const netSavings = totalDeposits - totalExpenses;
+  const avgExpense = data.expenses.length > 0 ? totalExpenses / data.expenses.length : 0;
 
-  // Header branding banner
-  doc.setFillColor(79, 70, 229); // #4F46E5 Indigo
+  // Header Banner (#006466 Deep Teal matching reports theme)
+  doc.setFillColor(0, 100, 102); // #006466
   doc.rect(0, 0, 210, 32, 'F');
 
   doc.setFont('Helvetica', 'bold');
   doc.setFontSize(18);
   doc.setTextColor(255, 255, 255);
-  doc.text('FAMILY EXPENSE REPORT', 14, 16);
+  doc.text('FAMILY EXPENSE REPORT', 14, 15);
 
   doc.setFont('Helvetica', 'normal');
-  doc.setFontSize(10);
-  doc.text(`${data.familyName} • ${data.dateRangeLabel}`, 14, 24);
-  doc.text(`Generated: ${new Date().toLocaleDateString()}`, 150, 24);
+  doc.setFontSize(9.5);
+  doc.text(`${data.familyName} • Period: ${data.dateRangeLabel}`, 14, 23);
+  doc.text(`Generated: ${new Date().toLocaleDateString()}`, 150, 23);
 
-  // Summary Metrics Section
-  let yPos = 44;
+  // Filter badges banner
+  let yPos = 40;
+  doc.setFontSize(8.5);
+  doc.setTextColor(71, 85, 105);
+  const filterDesc = `Filters: [Category: ${data.categoryFilter}] • [Paid By: ${data.paidByFilter}] • [Payment: ${data.paymentMethodFilter}]`;
+  doc.text(filterDesc, 14, yPos);
+
+  yPos += 7;
+  // Summary Metric Cards
+  doc.setFillColor(255, 241, 242); // Rose light for expenses
+  doc.setDrawColor(254, 205, 211);
+  doc.roundedRect(14, yPos, 58, 20, 2, 2, 'FD');
+  doc.setFontSize(8);
+  doc.setFont('Helvetica', 'bold');
+  doc.setTextColor(159, 18, 57);
+  doc.text('TOTAL EXPENSES', 18, yPos + 6);
+  doc.setFontSize(12);
+  doc.text(`${data.currency} ${totalExpenses.toLocaleString()}`, 18, yPos + 14);
+
+  doc.setFillColor(248, 250, 252);
+  doc.setDrawColor(226, 232, 240);
+  doc.roundedRect(76, yPos, 58, 20, 2, 2, 'FD');
+  doc.setFontSize(8);
+  doc.setFont('Helvetica', 'bold');
+  doc.setTextColor(51, 65, 85);
+  doc.text('TRANSACTIONS', 80, yPos + 6);
+  doc.setFontSize(12);
+  doc.text(`${data.expenses.length} records`, 80, yPos + 14);
+
+  doc.setFillColor(240, 253, 250); // Teal light
+  doc.setDrawColor(204, 251, 241);
+  doc.roundedRect(138, yPos, 58, 20, 2, 2, 'FD');
+  doc.setFontSize(8);
+  doc.setFont('Helvetica', 'bold');
+  doc.setTextColor(19, 78, 74);
+  doc.text('AVERAGE EXPENSE', 142, yPos + 6);
+  doc.setFontSize(12);
+  doc.text(`${data.currency} ${Math.round(avgExpense).toLocaleString()}`, 142, yPos + 14);
+
+  // Category Breakdown Table
+  yPos += 28;
   doc.setTextColor(30, 41, 59);
   doc.setFont('Helvetica', 'bold');
-  doc.setFontSize(13);
-  doc.text('Financial Overview', 14, yPos);
+  doc.setFontSize(11);
+  doc.text('Category-Wise Summary', 14, yPos);
 
+  yPos += 5;
+  doc.setFillColor(241, 245, 249);
+  doc.rect(14, yPos, 182, 7, 'F');
+  doc.setFontSize(8.5);
+  doc.setFont('Helvetica', 'bold');
+  doc.setTextColor(71, 85, 105);
+  doc.text('Category', 18, yPos + 5);
+  doc.text('Count', 90, yPos + 5);
+  doc.text(`Amount (${data.currency})`, 130, yPos + 5);
+  doc.text('Share %', 170, yPos + 5);
+
+  const catMap: Record<string, { count: number; amount: number }> = {};
+  data.expenses.forEach((e) => {
+    const c = e.category || 'Other';
+    if (!catMap[c]) catMap[c] = { count: 0, amount: 0 };
+    catMap[c].count += 1;
+    catMap[c].amount += Number(e.amount) || 0;
+  });
+
+  const catEntries = Object.entries(catMap).sort((a, b) => b[1].amount - a[1].amount);
+  yPos += 7;
+  doc.setFont('Helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.setTextColor(30, 41, 59);
+
+  catEntries.slice(0, 8).forEach(([cat, stat]) => {
+    const pct = totalExpenses > 0 ? ((stat.amount / totalExpenses) * 100).toFixed(1) : '0';
+    doc.text(cat, 18, yPos + 4);
+    doc.text(String(stat.count), 90, yPos + 4);
+    doc.text(`${data.currency} ${stat.amount.toLocaleString()}`, 130, yPos + 4);
+    doc.text(`${pct}%`, 170, yPos + 4);
+    doc.setDrawColor(241, 245, 249);
+    doc.line(14, yPos + 6, 196, yPos + 6);
+    yPos += 6;
+  });
+
+  // Detailed Transactions Table
   yPos += 8;
-  // Card 1: Deposits
-  doc.setFillColor(240, 253, 244); // mint light
+  if (yPos > 240) {
+    doc.addPage();
+    yPos = 20;
+  }
+
+  doc.setFont('Helvetica', 'bold');
+  doc.setFontSize(11);
+  doc.text(`Detailed Expenses (${data.expenses.length} Items)`, 14, yPos);
+
+  yPos += 5;
+  doc.setFillColor(241, 245, 249);
+  doc.rect(14, yPos, 182, 7, 'F');
+  doc.setFontSize(8);
+  doc.setFont('Helvetica', 'bold');
+  doc.setTextColor(71, 85, 105);
+  doc.text('Date', 18, yPos + 5);
+  doc.text('Expense Title', 42, yPos + 5);
+  doc.text('Category', 95, yPos + 5);
+  doc.text('Paid By', 130, yPos + 5);
+  doc.text('Method', 158, yPos + 5);
+  doc.text('Amount', 182, yPos + 5);
+
+  yPos += 7;
+  doc.setFont('Helvetica', 'normal');
+  doc.setFontSize(7.5);
+  doc.setTextColor(51, 65, 85);
+
+  data.expenses.forEach((e) => {
+    if (yPos > 275) {
+      doc.addPage();
+      yPos = 20;
+      doc.setFillColor(241, 245, 249);
+      doc.rect(14, yPos, 182, 7, 'F');
+      doc.setFontSize(8);
+      doc.setFont('Helvetica', 'bold');
+      doc.setTextColor(71, 85, 105);
+      doc.text('Date', 18, yPos + 5);
+      doc.text('Expense Title', 42, yPos + 5);
+      doc.text('Category', 95, yPos + 5);
+      doc.text('Paid By', 130, yPos + 5);
+      doc.text('Method', 158, yPos + 5);
+      doc.text('Amount', 182, yPos + 5);
+      yPos += 7;
+      doc.setFont('Helvetica', 'normal');
+      doc.setFontSize(7.5);
+      doc.setTextColor(51, 65, 85);
+    }
+    doc.text(formatDate(e.date), 18, yPos + 4);
+    doc.text(e.title.length > 25 ? e.title.substring(0, 23) + '...' : e.title, 42, yPos + 4);
+    doc.text(e.category.length > 16 ? e.category.substring(0, 15) + '..' : e.category, 95, yPos + 4);
+    doc.text(e.paidByName.length > 14 ? e.paidByName.substring(0, 13) + '..' : e.paidByName, 130, yPos + 4);
+    doc.text((e.paymentMethod || 'Cash').substring(0, 11), 158, yPos + 4);
+    doc.text(`${data.currency} ${Number(e.amount).toLocaleString()}`, 182, yPos + 4);
+    doc.setDrawColor(241, 245, 249);
+    doc.line(14, yPos + 5.5, 196, yPos + 5.5);
+    yPos += 5.5;
+  });
+
+  const filename = `${data.familyName.replace(/\s+/g, '_')}_Expense_Report_${new Date().toISOString().split('T')[0]}.pdf`;
+  doc.save(filename);
+}
+
+// ==========================================
+// 3. DEPOSIT REPORT - EXCEL EXPORT
+// ==========================================
+export function exportDepositReportToExcel(data: DepositExportFilterParams) {
+  const wb = XLSX.utils.book_new();
+
+  const totalDeposits = data.deposits.reduce((s, d) => s + (Number(d.amount) || 0), 0);
+  const avgDeposit = data.deposits.length > 0 ? totalDeposits / data.deposits.length : 0;
+
+  // Summary Sheet
+  const summaryRows = [
+    ['Family Expense Tracker - Deposit Report'],
+    ['Family Name', data.familyName],
+    ['Period', data.dateRangeLabel],
+    ['Generated On', new Date().toLocaleString()],
+    [],
+    ['Filters Applied'],
+    ['Deposit Type Filter', data.depositTypeFilter],
+    ['Deposit By Filter', data.depositByFilter],
+    [],
+    ['Summary Metric', `Value (${data.currency})`],
+    ['Total Filtered Deposits', totalDeposits],
+    ['Transaction Count', data.deposits.length],
+    ['Average Deposit', Math.round(avgDeposit * 100) / 100],
+  ];
+  const wsSummary = XLSX.utils.aoa_to_sheet(summaryRows);
+  XLSX.utils.book_append_sheet(wb, wsSummary, 'Deposit Summary');
+
+  // Detailed Transactions Sheet
+  const depositRows = data.deposits.map((d) => ({
+    'Date': formatDate(d.date),
+    'Deposit Title': d.title,
+    'Deposit Type': d.depositType || 'Contribution',
+    [`Amount (${data.currency})`]: Number(d.amount) || 0,
+    'Deposit By': d.depositedByName,
+    'Payment Method': d.paymentMethod || 'Cash',
+    'Description / Remarks': d.description || '',
+  }));
+  const wsDeposits = XLSX.utils.json_to_sheet(depositRows);
+  XLSX.utils.book_append_sheet(wb, wsDeposits, 'Detailed Deposits');
+
+  // Type Breakdown Sheet
+  const typeMap: Record<string, { count: number; total: number }> = {};
+  data.deposits.forEach((d) => {
+    const t = d.depositType || 'Contribution';
+    if (!typeMap[t]) typeMap[t] = { count: 0, total: 0 };
+    typeMap[t].count += 1;
+    typeMap[t].total += Number(d.amount) || 0;
+  });
+  const typeRows = Object.entries(typeMap).map(([type, stat]) => ({
+    'Deposit Type': type,
+    'Transactions': stat.count,
+    [`Total Amount (${data.currency})`]: stat.total,
+    'Percentage': totalDeposits > 0 ? `${((stat.total / totalDeposits) * 100).toFixed(1)}%` : '0%',
+  }));
+  const wsTypes = XLSX.utils.json_to_sheet(typeRows);
+  XLSX.utils.book_append_sheet(wb, wsTypes, 'Deposit Type Breakdown');
+
+  const filename = `${data.familyName.replace(/\s+/g, '_')}_Deposit_Report_${new Date().toISOString().split('T')[0]}.xlsx`;
+  XLSX.writeFile(wb, filename);
+}
+
+// ==========================================
+// 4. DEPOSIT REPORT - PDF EXPORT
+// ==========================================
+export function exportDepositReportToPDF(data: DepositExportFilterParams) {
+  const doc = new jsPDF({
+    orientation: 'portrait',
+    unit: 'mm',
+    format: 'a4',
+  });
+
+  const totalDeposits = data.deposits.reduce((s, d) => s + (Number(d.amount) || 0), 0);
+  const avgDeposit = data.deposits.length > 0 ? totalDeposits / data.deposits.length : 0;
+
+  // Header Banner (#006466 Deep Teal matching reports theme)
+  doc.setFillColor(0, 100, 102); // #006466
+  doc.rect(0, 0, 210, 32, 'F');
+
+  doc.setFont('Helvetica', 'bold');
+  doc.setFontSize(18);
+  doc.setTextColor(255, 255, 255);
+  doc.text('FAMILY DEPOSIT REPORT', 14, 15);
+
+  doc.setFont('Helvetica', 'normal');
+  doc.setFontSize(9.5);
+  doc.text(`${data.familyName} • Period: ${data.dateRangeLabel}`, 14, 23);
+  doc.text(`Generated: ${new Date().toLocaleDateString()}`, 150, 23);
+
+  // Filter badges banner
+  let yPos = 40;
+  doc.setFontSize(8.5);
+  doc.setTextColor(71, 85, 105);
+  const filterDesc = `Filters: [Deposit Type: ${data.depositTypeFilter}] • [Deposit By: ${data.depositByFilter}]`;
+  doc.text(filterDesc, 14, yPos);
+
+  yPos += 7;
+  // Summary Metric Cards
+  doc.setFillColor(240, 253, 244); // Emerald light for deposits
   doc.setDrawColor(187, 247, 208);
   doc.roundedRect(14, yPos, 58, 20, 2, 2, 'FD');
   doc.setFontSize(8);
@@ -123,123 +369,158 @@ export function exportToPDF(data: ExportReportData) {
   doc.setFontSize(12);
   doc.text(`${data.currency} ${totalDeposits.toLocaleString()}`, 18, yPos + 14);
 
-  // Card 2: Expenses
-  doc.setFillColor(255, 241, 242); // rose light
-  doc.setDrawColor(254, 205, 211);
+  doc.setFillColor(248, 250, 252);
+  doc.setDrawColor(226, 232, 240);
   doc.roundedRect(76, yPos, 58, 20, 2, 2, 'FD');
   doc.setFontSize(8);
   doc.setFont('Helvetica', 'bold');
-  doc.setTextColor(159, 18, 57);
-  doc.text('TOTAL EXPENSES', 80, yPos + 6);
+  doc.setTextColor(51, 65, 85);
+  doc.text('TRANSACTIONS', 80, yPos + 6);
   doc.setFontSize(12);
-  doc.text(`${data.currency} ${totalExpenses.toLocaleString()}`, 80, yPos + 14);
+  doc.text(`${data.deposits.length} records`, 80, yPos + 14);
 
-  // Card 3: Balance
-  doc.setFillColor(238, 242, 255); // indigo light
-  doc.setDrawColor(199, 210, 254);
+  doc.setFillColor(240, 253, 250); // Teal light
+  doc.setDrawColor(204, 251, 241);
   doc.roundedRect(138, yPos, 58, 20, 2, 2, 'FD');
   doc.setFontSize(8);
   doc.setFont('Helvetica', 'bold');
-  doc.setTextColor(49, 46, 129);
-  doc.text('NET SAVINGS / BALANCE', 142, yPos + 6);
+  doc.setTextColor(19, 78, 74);
+  doc.text('AVERAGE DEPOSIT', 142, yPos + 6);
   doc.setFontSize(12);
-  doc.text(`${data.currency} ${netSavings.toLocaleString()}`, 142, yPos + 14);
+  doc.text(`${data.currency} ${Math.round(avgDeposit).toLocaleString()}`, 142, yPos + 14);
 
-  // Category Breakdown Table
-  yPos += 30;
+  // Deposit Type Breakdown Table
+  yPos += 28;
   doc.setTextColor(30, 41, 59);
   doc.setFont('Helvetica', 'bold');
-  doc.setFontSize(12);
-  doc.text('Category-Wise Breakdown', 14, yPos);
+  doc.setFontSize(11);
+  doc.text('Deposit Type Summary', 14, yPos);
 
-  yPos += 6;
+  yPos += 5;
   doc.setFillColor(241, 245, 249);
   doc.rect(14, yPos, 182, 7, 'F');
-  doc.setFontSize(9);
+  doc.setFontSize(8.5);
   doc.setFont('Helvetica', 'bold');
   doc.setTextColor(71, 85, 105);
-  doc.text('Category', 18, yPos + 5);
-  doc.text('Transactions', 90, yPos + 5);
+  doc.text('Deposit Type', 18, yPos + 5);
+  doc.text('Count', 90, yPos + 5);
   doc.text(`Amount (${data.currency})`, 130, yPos + 5);
   doc.text('Share %', 170, yPos + 5);
 
-  const catMap: Record<string, { count: number; amount: number }> = {};
-  data.expenses.forEach((e) => {
-    if (!catMap[e.category]) catMap[e.category] = { count: 0, amount: 0 };
-    catMap[e.category].count += 1;
-    catMap[e.category].amount += Number(e.amount) || 0;
+  const typeMap: Record<string, { count: number; amount: number }> = {};
+  data.deposits.forEach((d) => {
+    const t = d.depositType || 'Contribution';
+    if (!typeMap[t]) typeMap[t] = { count: 0, amount: 0 };
+    typeMap[t].count += 1;
+    typeMap[t].amount += Number(d.amount) || 0;
   });
 
-  const catEntries = Object.entries(catMap).sort((a, b) => b[1].amount - a[1].amount);
-
+  const typeEntries = Object.entries(typeMap).sort((a, b) => b[1].amount - a[1].amount);
   yPos += 7;
   doc.setFont('Helvetica', 'normal');
-  doc.setFontSize(8.5);
+  doc.setFontSize(8);
   doc.setTextColor(30, 41, 59);
 
-  catEntries.slice(0, 10).forEach(([cat, stat]) => {
-    const pct = totalExpenses > 0 ? ((stat.amount / totalExpenses) * 100).toFixed(1) : '0';
-    doc.text(cat, 18, yPos + 4);
+  typeEntries.slice(0, 8).forEach(([type, stat]) => {
+    const pct = totalDeposits > 0 ? ((stat.amount / totalDeposits) * 100).toFixed(1) : '0';
+    doc.text(type, 18, yPos + 4);
     doc.text(String(stat.count), 90, yPos + 4);
     doc.text(`${data.currency} ${stat.amount.toLocaleString()}`, 130, yPos + 4);
     doc.text(`${pct}%`, 170, yPos + 4);
     doc.setDrawColor(241, 245, 249);
     doc.line(14, yPos + 6, 196, yPos + 6);
-    yPos += 6.5;
+    yPos += 6;
   });
 
-  // Recent Transactions Section
-  yPos += 6;
+  // Detailed Transactions Table
+  yPos += 8;
   if (yPos > 240) {
     doc.addPage();
     yPos = 20;
   }
 
   doc.setFont('Helvetica', 'bold');
-  doc.setFontSize(12);
-  doc.text('Detailed Expenses Summary (Top Records)', 14, yPos);
+  doc.setFontSize(11);
+  doc.text(`Detailed Deposits (${data.deposits.length} Items)`, 14, yPos);
 
-  yPos += 6;
+  yPos += 5;
   doc.setFillColor(241, 245, 249);
   doc.rect(14, yPos, 182, 7, 'F');
-  doc.setFontSize(8.5);
+  doc.setFontSize(8);
   doc.setFont('Helvetica', 'bold');
   doc.setTextColor(71, 85, 105);
   doc.text('Date', 18, yPos + 5);
-  doc.text('Expense Title', 45, yPos + 5);
-  doc.text('Category', 105, yPos + 5);
-  doc.text('Paid By', 145, yPos + 5);
-  doc.text(`Amount`, 175, yPos + 5);
+  doc.text('Deposit Title', 42, yPos + 5);
+  doc.text('Deposit Type', 95, yPos + 5);
+  doc.text('Deposit By', 130, yPos + 5);
+  doc.text('Method', 158, yPos + 5);
+  doc.text('Amount', 182, yPos + 5);
 
   yPos += 7;
   doc.setFont('Helvetica', 'normal');
-  doc.setFontSize(8);
+  doc.setFontSize(7.5);
   doc.setTextColor(51, 65, 85);
 
-  data.expenses.slice(0, 15).forEach((e) => {
+  data.deposits.forEach((d) => {
     if (yPos > 275) {
       doc.addPage();
       yPos = 20;
+      doc.setFillColor(241, 245, 249);
+      doc.rect(14, yPos, 182, 7, 'F');
+      doc.setFontSize(8);
+      doc.setFont('Helvetica', 'bold');
+      doc.setTextColor(71, 85, 105);
+      doc.text('Date', 18, yPos + 5);
+      doc.text('Deposit Title', 42, yPos + 5);
+      doc.text('Deposit Type', 95, yPos + 5);
+      doc.text('Deposit By', 130, yPos + 5);
+      doc.text('Method', 158, yPos + 5);
+      doc.text('Amount', 182, yPos + 5);
+      yPos += 7;
+      doc.setFont('Helvetica', 'normal');
+      doc.setFontSize(7.5);
+      doc.setTextColor(51, 65, 85);
     }
-    doc.text(formatDate(e.date), 18, yPos + 4);
-    doc.text(e.title.length > 28 ? e.title.substring(0, 26) + '...' : e.title, 45, yPos + 4);
-    doc.text(e.category, 105, yPos + 4);
-    doc.text(e.paidByName, 145, yPos + 4);
-    doc.text(`${data.currency} ${Number(e.amount).toLocaleString()}`, 175, yPos + 4);
+    doc.text(formatDate(d.date), 18, yPos + 4);
+    doc.text(d.title.length > 25 ? d.title.substring(0, 23) + '...' : d.title, 42, yPos + 4);
+    doc.text((d.depositType || 'Contribution').substring(0, 15), 95, yPos + 4);
+    doc.text(d.depositedByName.length > 14 ? d.depositedByName.substring(0, 13) + '..' : d.depositedByName, 130, yPos + 4);
+    doc.text((d.paymentMethod || 'Cash').substring(0, 11), 158, yPos + 4);
+    doc.text(`${data.currency} ${Number(d.amount).toLocaleString()}`, 182, yPos + 4);
     doc.setDrawColor(241, 245, 249);
-    doc.line(14, yPos + 6, 196, yPos + 6);
-    yPos += 6;
+    doc.line(14, yPos + 5.5, 196, yPos + 5.5);
+    yPos += 5.5;
   });
 
-  // Footer note
-  doc.setFontSize(8);
-  doc.setTextColor(148, 163, 184);
-  doc.text(
-    'Family Expense Management System • Confidential & for family records only.',
-    14,
-    285
-  );
-
-  const filename = `${data.familyName.replace(/\s+/g, '_')}_Report_${new Date().toISOString().split('T')[0]}.pdf`;
+  const filename = `${data.familyName.replace(/\s+/g, '_')}_Deposit_Report_${new Date().toISOString().split('T')[0]}.pdf`;
   doc.save(filename);
+}
+
+// Backwards compatibility
+export function exportToExcel(data: any) {
+  exportExpenseReportToExcel({
+    familyName: data.familyName,
+    currency: data.currency,
+    dateRangeLabel: data.dateRangeLabel,
+    categoryFilter: 'All Categories',
+    paidByFilter: 'All Paid By',
+    paymentMethodFilter: 'All Payment Methods',
+    expenses: data.expenses || [],
+    categories: data.categories || [],
+    members: data.members || [],
+  });
+}
+
+export function exportToPDF(data: any) {
+  exportExpenseReportToPDF({
+    familyName: data.familyName,
+    currency: data.currency,
+    dateRangeLabel: data.dateRangeLabel,
+    categoryFilter: 'All Categories',
+    paidByFilter: 'All Paid By',
+    paymentMethodFilter: 'All Payment Methods',
+    expenses: data.expenses || [],
+    categories: data.categories || [],
+    members: data.members || [],
+  });
 }

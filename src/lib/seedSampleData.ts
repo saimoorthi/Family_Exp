@@ -1,11 +1,32 @@
 import { db } from './firebase';
-import { doc, setDoc, getDocs, collection } from 'firebase/firestore';
+import { doc, setDoc, getDoc, getDocs, collection } from 'firebase/firestore';
 import { Expense, Deposit } from '../types';
 
 export async function checkAndSeedInitialData(userId: string, userName: string) {
   try {
+    // 1. Check local device flag to avoid unnecessary Firestore read
+    if (localStorage.getItem('family_ledger_seeded_or_wiped') === 'true') {
+      return;
+    }
+
+    // 2. Check in Firestore familySettings if initial setup/seeding has already been completed or wiped
+    const settingsSnap = await getDoc(doc(db, 'familySettings', 'general'));
+    if (settingsSnap.exists() && settingsSnap.data()?.isSetupCompleted) {
+      localStorage.setItem('family_ledger_seeded_or_wiped', 'true');
+      return;
+    }
+
+    // 3. Check if expenses collection already has data
     const expSnap = await getDocs(collection(db, 'expenses'));
-    if (!expSnap.empty) return; // already has data
+    if (!expSnap.empty) {
+      localStorage.setItem('family_ledger_seeded_or_wiped', 'true');
+      await setDoc(doc(db, 'familySettings', 'general'), { isSetupCompleted: true }, { merge: true }).catch(() => {});
+      return;
+    }
+
+    // 4. If expenses is empty and isSetupCompleted is not true, mark setup completed
+    localStorage.setItem('family_ledger_seeded_or_wiped', 'true');
+    await setDoc(doc(db, 'familySettings', 'general'), { isSetupCompleted: true }, { merge: true }).catch(() => {});
 
     const today = new Date().toISOString().split('T')[0];
     const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
@@ -16,6 +37,7 @@ export async function checkAndSeedInitialData(userId: string, userName: string) 
       id: 'dep_sample_salary',
       title: 'Monthly Salary Contribution',
       amount: 32500,
+      depositType: 'Salary',
       depositedBy: userId,
       depositedByName: userName || 'Admin',
       date: threeDaysAgo,

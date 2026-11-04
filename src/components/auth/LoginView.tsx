@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { User, Lock, Eye, EyeOff, AlertCircle, Info, ShieldCheck } from 'lucide-react';
-import { useAuth, DEFAULT_ADMIN_USERNAME, DEFAULT_ADMIN_PASS } from '../../context/AuthContext';
+import { User, Lock, Eye, EyeOff, AlertCircle, ShieldCheck } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
+import { HouseholdSnowfall } from './HouseholdSnowfall';
 
 export const LoginView: React.FC = () => {
   const { login, authError, clearAuthError, isLoading } = useAuth();
@@ -17,9 +18,6 @@ export const LoginView: React.FC = () => {
       const savedUsername = localStorage.getItem('family_expense_remember_username_v2');
       if (savedUsername) {
         setUsername(savedUsername);
-      } else {
-        setUsername(DEFAULT_ADMIN_USERNAME);
-        setPassword(DEFAULT_ADMIN_PASS);
       }
     } catch {
       // ignore
@@ -43,17 +41,13 @@ export const LoginView: React.FC = () => {
     await login(username.trim(), password, rememberMe);
   };
 
-  const fillAdminCreds = () => {
-    setUsername(DEFAULT_ADMIN_USERNAME);
-    setPassword(DEFAULT_ADMIN_PASS);
-    clearAuthError();
-    setLocalError(null);
-  };
-
   return (
     <div className="min-h-screen bg-[#F6F8FD] flex flex-col justify-center items-center px-4 py-10 relative overflow-hidden font-['Outfit']">
       {/* Subtle top ambient glow */}
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-96 h-80 bg-indigo-200/40 rounded-full blur-3xl pointer-events-none -z-10" />
+
+      {/* Gentle Greyscale Household Icons Snowfall (Drifting behind login fields) */}
+      <HouseholdSnowfall />
 
       {/* Main Form Container */}
       <div className="w-full max-w-sm flex flex-col items-center z-10">
@@ -103,26 +97,6 @@ export const LoginView: React.FC = () => {
 
         {/* Card with Form */}
         <div className="w-full bg-white rounded-3xl p-6 shadow-xl shadow-slate-200/60 border border-slate-100 animate-in zoom-in-95 duration-200">
-          {/* Quick Credential Banner */}
-          <div className="mb-4 p-2.5 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-start justify-between gap-2 text-xs text-indigo-900">
-            <div className="flex items-start gap-1.5">
-              <Info className="w-4 h-4 text-indigo-600 shrink-0 mt-0.5" />
-              <div>
-                <span className="font-semibold">Family Admin Access:</span>
-                <p className="text-[11px] text-indigo-700">
-                  Username: <strong>admin</strong> | Password: <strong>admin123</strong>
-                </p>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={fillAdminCreds}
-              className="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 bg-white px-2 py-1 rounded-lg border border-indigo-200 shadow-2xs shrink-0 cursor-pointer"
-            >
-              Autofill
-            </button>
-          </div>
-
           {/* Error Message */}
           {(authError || localError) && (
             <div className="mb-4 p-3 rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-start gap-2">

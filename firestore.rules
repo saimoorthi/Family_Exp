@@ -37,6 +37,18 @@ service cloud.firestore {
       allow create, update, delete: if isValidId(categoryId);
     }
 
+    // Payment Methods
+    match /paymentMethods/{methodId} {
+      allow get, list: if true;
+      allow create, update, delete: if isValidId(methodId);
+    }
+
+    // Deposit Types
+    match /depositTypes/{typeId} {
+      allow get, list: if true;
+      allow create, update, delete: if isValidId(typeId);
+    }
+
     // Activity Logs
     match /activityLogs/{logId} {
       allow get, list: if true;

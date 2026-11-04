@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   User,
   Bell,
@@ -29,10 +29,14 @@ import {
   Search,
   ShieldCheck,
   CreditCard,
+  ChevronDown,
+  Layers,
+  Sliders,
+  ArrowLeft,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useData } from '../../context/DataContext';
-import { UserProfile, UserRole, CategoryItem, PaymentMethodItem, ActiveTab } from '../../types';
+import { UserProfile, UserRole, CategoryItem, PaymentMethodItem, DepositTypeItem, ActiveTab } from '../../types';
 import { SUPPORTED_CURRENCIES } from '../../lib/constants';
 import { CategoryIcon, searchLucideIcons, ICON_REGISTRY, SearchedIconItem } from '../common/CategoryIcon';
 import { PWAInstallButton } from '../common/PWAInstallButton';
@@ -51,6 +55,8 @@ export const SettingsView: React.FC = () => {
     members,
     toggleMemberActive,
     updateMemberRole,
+    updateMember,
+    deleteMember,
     categories,
     addCategory,
     updateCategory,
@@ -59,11 +65,16 @@ export const SettingsView: React.FC = () => {
     addPaymentMethod,
     updatePaymentMethod,
     deletePaymentMethod,
+    depositTypes,
+    addDepositType,
+    updateDepositType,
+    deleteDepositType,
     activityLogs,
     syncStatus,
     pendingCount,
     manualSync,
     wipeAllData,
+    showToast,
   } = useData();
 
   // Notification toggle state
@@ -71,8 +82,27 @@ export const SettingsView: React.FC = () => {
 
   // Active Modals
   const [activeModal, setActiveModal] = useState<
-    'profile' | 'members' | 'categories' | 'paymentMethods' | 'general' | 'logs' | 'sync' | 'about' | 'applock' | null
+    'profile' | 'members' | 'appSettingsHub' | 'categories' | 'paymentMethods' | 'depositTypes' | 'general' | 'logs' | 'sync' | 'about' | 'applock' | null
   >(null);
+
+  // Deposit Types Admin State
+  const [newDtName, setNewDtName] = useState('');
+  const [editingDt, setEditingDt] = useState<DepositTypeItem | null>(null);
+  const [editDtName, setEditDtName] = useState('');
+  const [deletingDtId, setDeletingDtId] = useState<string | null>(null);
+  const [dtFeedbackMsg, setDtFeedbackMsg] = useState<string | null>(null);
+
+  // About & Version Control State
+  const [isEditingAbout, setIsEditingAbout] = useState(false);
+  const [aboutVersionInput, setAboutVersionInput] = useState(familySettings.appVersion || '1.0.0');
+  const [aboutDescInput, setAboutDescInput] = useState(
+    familySettings.aboutDescription ||
+      'Designed exclusively for family members to record daily expenses, track deposits and contributions, and preserve family financial wellness with offline synchronisation.'
+  );
+  const [aboutNotesInput, setAboutNotesInput] = useState(
+    familySettings.releaseNotes ||
+      'Initial release featuring multi-member ledger, offline PWA capability, instant analytics, deposit tracking, customizable payment methods and deposit types.'
+  );
 
   // Payment Methods Admin State
   const [newPmName, setNewPmName] = useState('');
@@ -85,8 +115,18 @@ export const SettingsView: React.FC = () => {
   const [newMemberName, setNewMemberName] = useState('');
   const [newMemberUsername, setNewMemberUsername] = useState('');
   const [newMemberPassword, setNewMemberPassword] = useState('');
+  const [showNewMemberPassword, setShowNewMemberPassword] = useState(false);
   const [newMemberRole, setNewMemberRole] = useState<UserRole>('user');
   const [memberActionMsg, setMemberActionMsg] = useState<string | null>(null);
+
+  // Member Edit & Delete State
+  const [editingMember, setEditingMember] = useState<UserProfile | null>(null);
+  const [editMemberName, setEditMemberName] = useState('');
+  const [editMemberRole, setEditMemberRole] = useState<UserRole>('user');
+  const [editMemberPassword, setEditMemberPassword] = useState('');
+  const [showEditMemberPassword, setShowEditMemberPassword] = useState(false);
+  const [showEditMemberRoleDropdown, setShowEditMemberRoleDropdown] = useState(false);
+  const [deletingMember, setDeletingMember] = useState<UserProfile | null>(null);
 
   // Category Management Form State
   const [newCatName, setNewCatName] = useState('');
@@ -116,6 +156,10 @@ export const SettingsView: React.FC = () => {
   const [editDefaultModule, setEditDefaultModule] = useState<ActiveTab>(
     userProfile?.defaultModule || 'dashboard'
   );
+  const [showPaymentMethodDropdown, setShowPaymentMethodDropdown] = useState(false);
+  const [showModuleDropdown, setShowModuleDropdown] = useState(false);
+  const [showMemberRoleDropdown, setShowMemberRoleDropdown] = useState(false);
+  const [showCurrencyDropdown, setShowCurrencyDropdown] = useState(false);
   const [currentPasswordInput, setCurrentPasswordInput] = useState('');
   const [newPasswordInput, setNewPasswordInput] = useState('');
   const [confirmPasswordInput, setConfirmPasswordInput] = useState('');
@@ -124,16 +168,32 @@ export const SettingsView: React.FC = () => {
   const [profileSavedMsg, setProfileSavedMsg] = useState<string | null>(null);
   const [profileErrorMsg, setProfileErrorMsg] = useState<string | null>(null);
 
-  // App Lock & Biometrics State
+  // App Lock & Biometrics State - scoped per userProfile.id
   const [appLockEnabled, setAppLockEnabled] = useState<boolean>(() => {
-    return localStorage.getItem('family_app_lock_enabled') === 'true';
+    return userProfile?.id
+      ? localStorage.getItem(`family_app_lock_enabled_${userProfile.id}`) === 'true'
+      : false;
   });
   const [appLockBiometric, setAppLockBiometric] = useState<boolean>(() => {
-    return localStorage.getItem('family_app_lock_biometric') === 'true';
+    return userProfile?.id
+      ? localStorage.getItem(`family_app_lock_biometric_${userProfile.id}`) === 'true'
+      : false;
   });
   const [pinInput, setPinInput] = useState('');
   const [pinConfirmInput, setPinConfirmInput] = useState('');
   const [appLockFeedback, setAppLockFeedback] = useState<string | null>(null);
+
+  // Synchronize App Lock state if user changes
+  useEffect(() => {
+    if (userProfile?.id) {
+      setAppLockEnabled(
+        localStorage.getItem(`family_app_lock_enabled_${userProfile.id}`) === 'true'
+      );
+      setAppLockBiometric(
+        localStorage.getItem(`family_app_lock_biometric_${userProfile.id}`) === 'true'
+      );
+    }
+  }, [userProfile?.id]);
 
   // Wipe Data State (Admin only)
   const [showWipeModal, setShowWipeModal] = useState(false);
@@ -174,6 +234,86 @@ export const SettingsView: React.FC = () => {
     } else {
       setMemberActionMsg(res.error || 'Failed to add member');
     }
+  };
+
+  // Start Editing Member
+  const handleStartEditMember = (m: UserProfile) => {
+    setMemberActionMsg(null);
+    setEditingMember(m);
+    setEditMemberName(m.displayName);
+    setEditMemberRole(m.role);
+    setEditMemberPassword('');
+    setShowEditMemberPassword(false);
+    setShowEditMemberRoleDropdown(false);
+  };
+
+  // Save Edited Member
+  const handleSaveEditMember = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingMember || !editMemberName.trim()) return;
+
+    if (editingMember.role === 'admin' && editMemberRole === 'user') {
+      const activeAdmins = members.filter(
+        (m) => m.role === 'admin' && m.isActive && m.id !== editingMember.id
+      );
+      if (activeAdmins.length === 0) {
+        setMemberActionMsg('Cannot demote the only active admin. At least one active admin is required.');
+        return;
+      }
+    }
+
+    if (editMemberPassword.trim() && editMemberPassword.trim().length < 4) {
+      setMemberActionMsg('Password must be at least 4 characters long.');
+      return;
+    }
+
+    const success = await updateMember(editingMember.id, {
+      displayName: editMemberName.trim(),
+      role: editMemberRole,
+      password: editMemberPassword.trim() || undefined,
+    });
+
+    if (success) {
+      setMemberActionMsg(`Member "${editMemberName.trim()}" updated successfully!`);
+      setEditingMember(null);
+      setTimeout(() => setMemberActionMsg(null), 3500);
+    }
+  };
+
+  // Request Delete Member (Validating extra admin rule)
+  const handleRequestDeleteMember = (targetMember: UserProfile) => {
+    setMemberActionMsg(null);
+
+    // 1. Prevent deleting currently logged-in account
+    if (targetMember.id === userProfile?.id || targetMember.username === userProfile?.username) {
+      setMemberActionMsg('You cannot delete your own logged-in admin account.');
+      return;
+    }
+
+    // 2. If target is an admin, check if extra active admins exist
+    if (targetMember.role === 'admin') {
+      const activeAdmins = members.filter(
+        (m) => m.role === 'admin' && m.isActive
+      );
+      if (activeAdmins.length <= 1) {
+        setMemberActionMsg('Cannot delete the only active admin. At least one active admin is required.');
+        return;
+      }
+    }
+
+    setDeletingMember(targetMember);
+  };
+
+  // Confirm Delete Member
+  const handleConfirmDeleteMember = async () => {
+    if (!deletingMember) return;
+    const targetName = deletingMember.displayName;
+    const success = await deleteMember(deletingMember.id);
+    if (success) {
+      setMemberActionMsg(`Member "${targetName}" deleted successfully.`);
+      setTimeout(() => setMemberActionMsg(null), 3500);
+    }
+    setDeletingMember(null);
   };
 
   // Search Lucide Icons for Add form
@@ -301,10 +441,69 @@ export const SettingsView: React.FC = () => {
     }
   };
 
-  // Save App Lock PIN & Settings
+  // Deposit Types Admin Handlers
+  const handleAddDepositType = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newDtName.trim()) return;
+    const name = newDtName.trim();
+    if (depositTypes.some((d) => d.name.toLowerCase() === name.toLowerCase())) {
+      setDtFeedbackMsg(`Deposit type "${name}" already exists!`);
+      setTimeout(() => setDtFeedbackMsg(null), 3000);
+      return;
+    }
+    const success = await addDepositType({ name, isDefault: false });
+    if (success) {
+      setNewDtName('');
+      setDtFeedbackMsg(`Added "${name}" successfully!`);
+      setTimeout(() => setDtFeedbackMsg(null), 3000);
+    }
+  };
+
+  const handleSaveEditDepositType = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingDt || !editDtName.trim()) return;
+    const name = editDtName.trim();
+    const success = await updateDepositType(editingDt.id, { name });
+    if (success) {
+      setEditingDt(null);
+      setEditDtName('');
+      setDtFeedbackMsg('Deposit type updated successfully!');
+      setTimeout(() => setDtFeedbackMsg(null), 3000);
+    }
+  };
+
+  const handleConfirmDeleteDepositType = async () => {
+    if (!deletingDtId) return;
+    if (depositTypes.length <= 1) {
+      setDtFeedbackMsg('At least one deposit type is required.');
+      setDeletingDtId(null);
+      setTimeout(() => setDtFeedbackMsg(null), 3000);
+      return;
+    }
+    await deleteDepositType(deletingDtId);
+    setDeletingDtId(null);
+  };
+
+  // Save About & Version Control
+  const handleSaveAbout = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await updateFamilySettings({
+      appVersion: aboutVersionInput.trim() || '1.0.0',
+      aboutDescription: aboutDescInput.trim(),
+      releaseNotes: aboutNotesInput.trim(),
+    });
+    setIsEditingAbout(false);
+  };
+
+  // Save App Lock PIN & Settings - scoped to userProfile.id
   const handleSaveAppLock = (e: React.FormEvent) => {
     e.preventDefault();
     setAppLockFeedback(null);
+    if (!userProfile?.id) return;
+
+    const lockKey = `family_app_lock_enabled_${userProfile.id}`;
+    const pinKey = `family_app_lock_pin_${userProfile.id}`;
+    const bioKey = `family_app_lock_biometric_${userProfile.id}`;
 
     if (appLockEnabled) {
       // Must provide and confirm 4-digit PIN
@@ -316,10 +515,20 @@ export const SettingsView: React.FC = () => {
         setAppLockFeedback('PIN confirmation does not match');
         return;
       }
-      localStorage.setItem('family_app_lock_enabled', 'true');
-      localStorage.setItem('family_app_lock_pin', pinInput);
-      localStorage.setItem('family_app_lock_biometric', appLockBiometric ? 'true' : 'false');
-      setAppLockFeedback('App Lock & PIN activated successfully!');
+      localStorage.setItem(lockKey, 'true');
+      localStorage.setItem(pinKey, pinInput);
+      localStorage.setItem(bioKey, appLockBiometric ? 'true' : 'false');
+
+      // Clear legacy device-wide keys
+      try {
+        localStorage.removeItem('family_app_lock_enabled');
+        localStorage.removeItem('family_app_lock_pin');
+        localStorage.removeItem('family_app_lock_biometric');
+      } catch {
+        // ignore
+      }
+
+      setAppLockFeedback('App Lock & PIN activated successfully for your account!');
       setTimeout(() => {
         setAppLockFeedback(null);
         setActiveModal(null);
@@ -327,11 +536,20 @@ export const SettingsView: React.FC = () => {
         setPinConfirmInput('');
       }, 1500);
     } else {
-      // Disabled
-      localStorage.setItem('family_app_lock_enabled', 'false');
-      localStorage.removeItem('family_app_lock_pin');
-      localStorage.setItem('family_app_lock_biometric', 'false');
-      setAppLockFeedback('App Lock disabled.');
+      // Disabled for this user
+      localStorage.setItem(lockKey, 'false');
+      localStorage.removeItem(pinKey);
+      localStorage.setItem(bioKey, 'false');
+
+      try {
+        localStorage.removeItem('family_app_lock_enabled');
+        localStorage.removeItem('family_app_lock_pin');
+        localStorage.removeItem('family_app_lock_biometric');
+      } catch {
+        // ignore
+      }
+
+      setAppLockFeedback('App Lock disabled for your account.');
       setTimeout(() => {
         setAppLockFeedback(null);
         setActiveModal(null);
@@ -385,7 +603,7 @@ export const SettingsView: React.FC = () => {
       </div>
 
       {/* 2. My Settings Group (Matches Screen 3!) */}
-      <div className="bg-white rounded-3xl p-5 shadow-xs border border-slate-100 space-y-4">
+      <div className="bg-white rounded-2xl p-5 shadow-xs border border-slate-100 space-y-4">
         <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">
           My Settings
         </h3>
@@ -409,6 +627,14 @@ export const SettingsView: React.FC = () => {
           {/* App Lock & Security PIN */}
           <button
             onClick={() => {
+              const currentEnabled = userProfile?.id
+                ? localStorage.getItem(`family_app_lock_enabled_${userProfile.id}`) === 'true'
+                : false;
+              const currentBio = userProfile?.id
+                ? localStorage.getItem(`family_app_lock_biometric_${userProfile.id}`) === 'true'
+                : false;
+              setAppLockEnabled(currentEnabled);
+              setAppLockBiometric(currentBio);
               setPinInput('');
               setPinConfirmInput('');
               setAppLockFeedback(null);
@@ -421,14 +647,16 @@ export const SettingsView: React.FC = () => {
               <div>
                 <span className="text-xs md:text-sm font-semibold block">App Lock (PIN & Biometrics)</span>
                 <span className="text-[11px] text-slate-400">
-                  {localStorage.getItem('family_app_lock_enabled') === 'true'
+                  {userProfile?.id &&
+                  localStorage.getItem(`family_app_lock_enabled_${userProfile.id}`) === 'true'
                     ? 'Active (4-Digit PIN / Biometric)'
                     : 'Disabled (Tap to setup)'}
                 </span>
               </div>
             </div>
             <div className="flex items-center gap-1.5">
-              {localStorage.getItem('family_app_lock_enabled') === 'true' ? (
+              {userProfile?.id &&
+              localStorage.getItem(`family_app_lock_enabled_${userProfile.id}`) === 'true' ? (
                 <span className="text-[10px] bg-emerald-50 text-emerald-700 font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
                   <ShieldCheck className="w-3 h-3 text-emerald-600" />
                   Active
@@ -500,9 +728,9 @@ export const SettingsView: React.FC = () => {
         </div>
       </div>
 
-      {/* 3. Admin Settings Group (Matches Screen 3 - Admin only!) */}
+      {/* 3. Admin Settings Group (Admin only!) */}
       {isAdmin && (
-        <div className="bg-white rounded-3xl p-5 shadow-xs border border-slate-100 space-y-4 animate-in fade-in">
+        <div className="bg-white rounded-2xl p-5 shadow-xs border border-slate-100 space-y-4 animate-in fade-in">
           <div className="flex items-center gap-2">
             <Shield className="w-4 h-4 text-indigo-600" />
             <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900">
@@ -523,57 +751,28 @@ export const SettingsView: React.FC = () => {
               <ChevronRight className="w-4 h-4 text-slate-400" />
             </button>
 
-            {/* Categories */}
+            {/* App Settings Hub */}
             <button
-              onClick={() => setActiveModal('categories')}
+              onClick={() => setActiveModal('appSettingsHub')}
               className="w-full py-3 flex items-center justify-between text-left hover:bg-slate-50/50 rounded-xl px-1 transition cursor-pointer"
             >
               <div className="flex items-center gap-3 text-slate-700">
-                <FolderTree className="w-4 h-4 text-slate-400" />
-                <span className="text-xs md:text-sm font-semibold">Categories (Edit & Custom Icons)</span>
-              </div>
-              <ChevronRight className="w-4 h-4 text-slate-400" />
-            </button>
-
-            {/* Payment Methods */}
-            <button
-              onClick={() => {
-                setEditingPm(null);
-                setNewPmName('');
-                setPmFeedbackMsg(null);
-                setActiveModal('paymentMethods');
-              }}
-              className="w-full py-3 flex items-center justify-between text-left hover:bg-slate-50/50 rounded-xl px-1 transition cursor-pointer"
-            >
-              <div className="flex items-center gap-3 text-slate-700">
-                <CreditCard className="w-4 h-4 text-slate-400" />
+                <Sliders className="w-4 h-4 text-indigo-600" />
                 <div>
-                  <span className="text-xs md:text-sm font-semibold block">Payment Methods</span>
+                  <span className="text-xs md:text-sm font-semibold block text-slate-900">
+                    App Settings
+                  </span>
                   <span className="text-[11px] text-slate-400">
-                    Add, edit & delete payment methods ({paymentMethods.length})
+                    Categories, payment methods, deposit types, currency & family name
                   </span>
                 </div>
               </div>
-              <ChevronRight className="w-4 h-4 text-slate-400" />
-            </button>
-
-            {/* General & Currency */}
-            <button
-              onClick={() => setActiveModal('general')}
-              className="w-full py-3 flex items-center justify-between text-left hover:bg-slate-50/50 rounded-xl px-1 transition cursor-pointer"
-            >
-              <div className="flex items-center gap-3 text-slate-700">
-                <Tag className="w-4 h-4 text-slate-400" />
-                <div>
-                  <span className="text-xs md:text-sm font-semibold block">
-                    Currency & Family Name
-                  </span>
-                  <span className="text-[11px] text-slate-400">
-                    {familySettings.familyName} • {familySettings.currency}
-                  </span>
-                </div>
+              <div className="flex items-center gap-1.5">
+                <span className="text-[10px] font-bold bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-full">
+                  Hub
+                </span>
+                <ChevronRight className="w-4 h-4 text-slate-400" />
               </div>
-              <ChevronRight className="w-4 h-4 text-slate-400" />
             </button>
 
             {/* Backup, Sync & Activity Logs */}
@@ -614,27 +813,49 @@ export const SettingsView: React.FC = () => {
         </div>
       )}
 
-      {/* 4. App Section (Matches Screen 3!) */}
-      <div className="bg-white rounded-3xl p-5 shadow-xs border border-slate-100 space-y-4">
-        <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">App</h3>
-
-        <div className="divide-y divide-slate-100">
-          <button
-            onClick={() => setActiveModal('about')}
-            className="w-full py-3 flex items-center justify-between text-left hover:bg-slate-50/50 rounded-xl px-1 transition cursor-pointer"
-          >
-            <div className="flex items-center gap-3 text-slate-700">
-              <Info className="w-4 h-4 text-slate-400" />
-              <span className="text-xs md:text-sm font-semibold">About</span>
+      {/* 4. App Section (Visible to ALL users: standard & admin) */}
+      <div className="bg-white rounded-2xl p-3 sm:p-3.5 shadow-xs border border-slate-100">
+        <button
+          onClick={() => {
+            setIsEditingAbout(false);
+            setActiveModal('about');
+          }}
+          className="w-full flex items-center justify-between text-left hover:bg-slate-50/70 rounded-xl p-1.5 transition cursor-pointer"
+        >
+          <div className="flex items-center gap-3 text-slate-700 min-w-0">
+            <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-indigo-600 to-indigo-500 flex items-center justify-center shadow-xs p-1.5 shrink-0">
+              <svg
+                className="w-full h-full drop-shadow-2xs"
+                viewBox="0 0 200 200"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M 100,25 L 170,85 L 170,165 Q 170,175 160,175 L 40,175 Q 30,175 30,165 L 30,85 Z"
+                  fill="none"
+                  stroke="#FFFFFF"
+                  strokeWidth="12"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+                <path
+                  d="M 100,62 C 92,50 78,56 78,70 C 78,85 95,98 100,105 C 105,98 122,85 122,70 C 122,56 108,50 100,62 Z"
+                  fill="#F472B6"
+                />
+                <circle cx="65" cy="115" r="14" fill="#FFFFFF" />
+                <circle cx="135" cy="115" r="14" fill="#FFFFFF" />
+                <circle cx="100" cy="125" r="12" fill="#FFFFFF" />
+              </svg>
             </div>
-            <ChevronRight className="w-4 h-4 text-slate-400" />
-          </button>
-        </div>
-
-        {/* PWA Install Button Banner */}
-        <div className="pt-2">
-          <PWAInstallButton compact={false} />
-        </div>
+            <div className="min-w-0">
+              <span className="text-xs md:text-sm font-semibold block text-slate-800">About App</span>
+              <span className="text-[11px] text-slate-400 truncate block">
+                Version {familySettings.appVersion || '1.0.0'} • Tap to view details
+              </span>
+            </div>
+          </div>
+          <ChevronRight className="w-4 h-4 text-slate-400 shrink-0 ml-2" />
+        </button>
       </div>
 
       {/* ================= MODALS ================= */}
@@ -642,7 +863,7 @@ export const SettingsView: React.FC = () => {
       {/* MODAL 1: Profile & Security Hub */}
       {activeModal === 'profile' && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in">
-          <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto">
             <button
               onClick={() => {
                 setActiveModal(null);
@@ -718,18 +939,51 @@ export const SettingsView: React.FC = () => {
                   <label className="block text-[11px] font-semibold text-slate-700 mb-1">
                     Default Payment Method
                   </label>
-                  <select
-                    value={editDefaultPaymentMethod}
-                    onChange={(e) => setEditDefaultPaymentMethod(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 cursor-pointer"
-                  >
-                    {paymentMethods.map((pm) => (
-                      <option key={pm.id} value={pm.name}>
-                        {pm.name}
-                      </option>
-                    ))}
-                    {paymentMethods.length === 0 && <option value="Cash">Cash</option>}
-                  </select>
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowPaymentMethodDropdown(!showPaymentMethodDropdown);
+                        setShowModuleDropdown(false);
+                      }}
+                      className="w-full bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl px-3.5 py-2 text-xs font-semibold text-slate-800 flex items-center justify-between cursor-pointer focus:outline-none transition shadow-2xs"
+                    >
+                      <div className="flex items-center gap-2 truncate">
+                        <CreditCard className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                        <span className="truncate">{editDefaultPaymentMethod}</span>
+                      </div>
+                      <ChevronDown
+                        className={`w-3.5 h-3.5 text-slate-400 shrink-0 transition-transform ${
+                          showPaymentMethodDropdown ? 'rotate-180' : ''
+                        }`}
+                      />
+                    </button>
+
+                    {showPaymentMethodDropdown && (
+                      <div className="absolute left-0 right-0 top-full mt-1.5 bg-white rounded-xl shadow-xl border border-slate-100 py-1.5 z-50 max-h-48 overflow-y-auto animate-in fade-in zoom-in-95">
+                        {(paymentMethods.length > 0 ? paymentMethods.map((pm) => pm.name) : ['Cash']).map((pmName) => (
+                          <button
+                            key={pmName}
+                            type="button"
+                            onClick={() => {
+                              setEditDefaultPaymentMethod(pmName);
+                              setShowPaymentMethodDropdown(false);
+                            }}
+                            className={`w-full text-left px-3 py-2 text-xs font-semibold transition flex items-center justify-between cursor-pointer ${
+                              editDefaultPaymentMethod === pmName
+                                ? 'bg-indigo-50 text-indigo-700 font-bold'
+                                : 'text-slate-700 hover:bg-slate-50'
+                            }`}
+                          >
+                            <span>{pmName}</span>
+                            {editDefaultPaymentMethod === pmName && (
+                              <CheckCircle2 className="w-3.5 h-3.5 text-indigo-600" />
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                   <span className="text-[10px] text-slate-400 mt-1 block">
                     Pre-selected when creating new expenses or deposits (Default: Cash)
                   </span>
@@ -740,17 +994,56 @@ export const SettingsView: React.FC = () => {
                   <label className="block text-[11px] font-semibold text-slate-700 mb-1">
                     Default Module When Logged In
                   </label>
-                  <select
-                    value={editDefaultModule}
-                    onChange={(e) => setEditDefaultModule(e.target.value as ActiveTab)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 cursor-pointer"
-                  >
-                    <option value="dashboard">Dashboard</option>
-                    <option value="expenses">Expenses</option>
-                    <option value="deposits">Deposits</option>
-                    <option value="reports">Reports / Analytics</option>
-                    <option value="settings">Settings</option>
-                  </select>
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowModuleDropdown(!showModuleDropdown);
+                        setShowPaymentMethodDropdown(false);
+                      }}
+                      className="w-full bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl px-3.5 py-2 text-xs font-semibold text-slate-800 flex items-center justify-between cursor-pointer focus:outline-none transition shadow-2xs"
+                    >
+                      <span className="truncate capitalize">
+                        {editDefaultModule === 'reports' ? 'Reports / Analytics' : editDefaultModule}
+                      </span>
+                      <ChevronDown
+                        className={`w-3.5 h-3.5 text-slate-400 shrink-0 transition-transform ${
+                          showModuleDropdown ? 'rotate-180' : ''
+                        }`}
+                      />
+                    </button>
+
+                    {showModuleDropdown && (
+                      <div className="absolute left-0 right-0 top-full mt-1.5 bg-white rounded-xl shadow-xl border border-slate-100 py-1.5 z-50 max-h-48 overflow-y-auto animate-in fade-in zoom-in-95">
+                        {[
+                          { val: 'dashboard', label: 'Dashboard' },
+                          { val: 'expenses', label: 'Expenses' },
+                          { val: 'deposits', label: 'Deposits' },
+                          { val: 'reports', label: 'Reports / Analytics' },
+                          { val: 'settings', label: 'Settings' },
+                        ].map((mod) => (
+                          <button
+                            key={mod.val}
+                            type="button"
+                            onClick={() => {
+                              setEditDefaultModule(mod.val as ActiveTab);
+                              setShowModuleDropdown(false);
+                            }}
+                            className={`w-full text-left px-3 py-2 text-xs font-semibold transition flex items-center justify-between cursor-pointer ${
+                              editDefaultModule === mod.val
+                                ? 'bg-indigo-50 text-indigo-700 font-bold'
+                                : 'text-slate-700 hover:bg-slate-50'
+                            }`}
+                          >
+                            <span>{mod.label}</span>
+                            {editDefaultModule === mod.val && (
+                              <CheckCircle2 className="w-3.5 h-3.5 text-indigo-600" />
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                   <span className="text-[10px] text-slate-400 mt-1 block">
                     Automatically opens this tab when you log into the app
                   </span>
@@ -857,7 +1150,7 @@ export const SettingsView: React.FC = () => {
       {/* MODAL 2: Manage Members (Admin Only) */}
       {isAdmin && activeModal === 'members' && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in">
-          <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto">
             <button
               onClick={() => setActiveModal(null)}
               className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 p-1"
@@ -879,73 +1172,267 @@ export const SettingsView: React.FC = () => {
               </div>
             )}
 
-            {/* Add New Member Form */}
-            <form
-              onSubmit={handleAddMember}
-              className="bg-slate-50 p-4 rounded-2xl border border-slate-200/80 mb-5 space-y-3"
-            >
-              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700">
-                Add Family Member
-              </h4>
+            {/* Form: Edit Member OR Add New Member */}
+            {editingMember ? (
+              <form
+                onSubmit={handleSaveEditMember}
+                className="bg-indigo-50/70 p-4 rounded-2xl border border-indigo-200 mb-5 space-y-3 animate-in fade-in"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-indigo-900">
+                    <Edit2 className="w-3.5 h-3.5 text-indigo-600" />
+                    <span>Edit Member: {editingMember.displayName}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setEditingMember(null)}
+                    className="text-[11px] font-bold text-slate-500 hover:text-slate-700 cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                </div>
 
-              <input
-                type="text"
-                value={newMemberName}
-                onChange={(e) => setNewMemberName(e.target.value)}
-                placeholder="Full Name (e.g. Sarah Smith)"
-                className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs"
-                required
-              />
+                <div className="text-[11px] text-slate-500">
+                  Username: <strong className="text-slate-800">@{editingMember.username || editingMember.id.replace('user_', '')}</strong>
+                </div>
 
-              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-600 mb-1">Display Name</label>
+                  <input
+                    type="text"
+                    value={editMemberName}
+                    onChange={(e) => setEditMemberName(e.target.value)}
+                    placeholder="Full Name"
+                    className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-medium"
+                    required
+                  />
+                </div>
+
+                {/* Optional reset password */}
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-[11px] font-bold text-slate-600">
+                      Reset Password (Optional)
+                    </label>
+                    <span className="text-[10px] text-slate-400">Leave blank to keep existing</span>
+                  </div>
+                  <div className="relative flex items-center">
+                    <input
+                      type={showEditMemberPassword ? 'text' : 'password'}
+                      value={editMemberPassword}
+                      onChange={(e) => setEditMemberPassword(e.target.value)}
+                      placeholder="Enter new password (min. 4 chars)"
+                      className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 pr-8 text-xs font-medium"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowEditMemberPassword(!showEditMemberPassword)}
+                      className="absolute right-2 text-slate-400 hover:text-slate-600 cursor-pointer p-0.5"
+                      tabIndex={-1}
+                    >
+                      {showEditMemberPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Role Selector & Submit */}
+                <div className="flex items-center justify-between gap-3 pt-1">
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => setShowEditMemberRoleDropdown(!showEditMemberRoleDropdown)}
+                      className="flex items-center gap-2 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 cursor-pointer shadow-2xs transition"
+                    >
+                      <span>{editMemberRole === 'admin' ? 'Admin Role' : 'User Role'}</span>
+                      <ChevronDown
+                        className={`w-3.5 h-3.5 text-slate-400 transition-transform ${
+                          showEditMemberRoleDropdown ? 'rotate-180' : ''
+                        }`}
+                      />
+                    </button>
+
+                    {showEditMemberRoleDropdown && (
+                      <div className="absolute left-0 top-full mt-1.5 w-36 bg-white rounded-xl shadow-xl border border-slate-100 py-1 z-50 animate-in fade-in zoom-in-95">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditMemberRole('user');
+                            setShowEditMemberRoleDropdown(false);
+                          }}
+                          className={`w-full text-left px-3 py-2 text-xs font-semibold flex items-center justify-between cursor-pointer ${
+                            editMemberRole === 'user'
+                              ? 'bg-indigo-50 text-indigo-700 font-bold'
+                              : 'text-slate-700 hover:bg-slate-50'
+                          }`}
+                        >
+                          <span>User Role</span>
+                          {editMemberRole === 'user' && (
+                            <CheckCircle2 className="w-3.5 h-3.5 text-indigo-600" />
+                          )}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditMemberRole('admin');
+                            setShowEditMemberRoleDropdown(false);
+                          }}
+                          className={`w-full text-left px-3 py-2 text-xs font-semibold flex items-center justify-between cursor-pointer ${
+                            editMemberRole === 'admin'
+                              ? 'bg-indigo-50 text-indigo-700 font-bold'
+                              : 'text-slate-700 hover:bg-slate-50'
+                          }`}
+                        >
+                          <span>Admin Role</span>
+                          {editMemberRole === 'admin' && (
+                            <CheckCircle2 className="w-3.5 h-3.5 text-indigo-600" />
+                          )}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setEditingMember(null)}
+                      className="px-3 py-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-white cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-4 py-2 rounded-xl shadow-xs transition cursor-pointer"
+                    >
+                      Save Changes
+                    </button>
+                  </div>
+                </div>
+              </form>
+            ) : (
+              /* Add New Member Form with Eye Icon on Password */
+              <form
+                onSubmit={handleAddMember}
+                className="bg-slate-50 p-4 rounded-2xl border border-slate-200/80 mb-5 space-y-3"
+              >
+                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700">
+                  Add Family Member
+                </h4>
+
                 <input
                   type="text"
-                  value={newMemberUsername}
-                  onChange={(e) => setNewMemberUsername(e.target.value.toLowerCase().replace(/\s+/g, ''))}
-                  placeholder="Username (e.g. sarah)"
+                  value={newMemberName}
+                  onChange={(e) => setNewMemberName(e.target.value)}
+                  placeholder="Full Name (e.g. Sarah Smith)"
                   className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-medium"
                   required
                 />
-                <input
-                  type="password"
-                  value={newMemberPassword}
-                  onChange={(e) => setNewMemberPassword(e.target.value)}
-                  placeholder="Password"
-                  className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs"
-                  required
-                />
-              </div>
 
-              <div className="flex items-center justify-between gap-3">
-                <select
-                  value={newMemberRole}
-                  onChange={(e) => setNewMemberRole(e.target.value as UserRole)}
-                  className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold"
-                >
-                  <option value="user">User Role</option>
-                  <option value="admin">Admin Role</option>
-                </select>
+                <div className="grid grid-cols-2 gap-2">
+                  <input
+                    type="text"
+                    value={newMemberUsername}
+                    onChange={(e) => setNewMemberUsername(e.target.value.toLowerCase().replace(/\s+/g, ''))}
+                    placeholder="Username (e.g. sarah)"
+                    className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-medium"
+                    required
+                  />
+                  <div className="relative flex items-center">
+                    <input
+                      type={showNewMemberPassword ? 'text' : 'password'}
+                      value={newMemberPassword}
+                      onChange={(e) => setNewMemberPassword(e.target.value)}
+                      placeholder="Password"
+                      className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 pr-8 text-xs font-medium"
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowNewMemberPassword(!showNewMemberPassword)}
+                      className="absolute right-2 text-slate-400 hover:text-slate-600 cursor-pointer p-0.5"
+                      tabIndex={-1}
+                      title={showNewMemberPassword ? 'Hide password' : 'Show password'}
+                    >
+                      {showNewMemberPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                    </button>
+                  </div>
+                </div>
 
-                <button
-                  type="submit"
-                  className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-4 py-2 rounded-xl shadow-xs transition cursor-pointer"
-                >
-                  + Add Member
-                </button>
-              </div>
-            </form>
+                <div className="flex items-center justify-between gap-3">
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => setShowMemberRoleDropdown(!showMemberRoleDropdown)}
+                      className="flex items-center gap-2 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 cursor-pointer shadow-2xs transition"
+                    >
+                      <span>{newMemberRole === 'admin' ? 'Admin Role' : 'User Role'}</span>
+                      <ChevronDown
+                        className={`w-3.5 h-3.5 text-slate-400 transition-transform ${
+                          showMemberRoleDropdown ? 'rotate-180' : ''
+                        }`}
+                      />
+                    </button>
 
-            {/* Existing Members List */}
+                    {showMemberRoleDropdown && (
+                      <div className="absolute left-0 top-full mt-1.5 w-36 bg-white rounded-xl shadow-xl border border-slate-100 py-1 z-50 animate-in fade-in zoom-in-95">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setNewMemberRole('user');
+                            setShowMemberRoleDropdown(false);
+                          }}
+                          className={`w-full text-left px-3 py-2 text-xs font-semibold flex items-center justify-between cursor-pointer ${
+                            newMemberRole === 'user'
+                              ? 'bg-indigo-50 text-indigo-700 font-bold'
+                              : 'text-slate-700 hover:bg-slate-50'
+                          }`}
+                        >
+                          <span>User Role</span>
+                          {newMemberRole === 'user' && (
+                            <CheckCircle2 className="w-3.5 h-3.5 text-indigo-600" />
+                          )}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setNewMemberRole('admin');
+                            setShowMemberRoleDropdown(false);
+                          }}
+                          className={`w-full text-left px-3 py-2 text-xs font-semibold flex items-center justify-between cursor-pointer ${
+                            newMemberRole === 'admin'
+                              ? 'bg-indigo-50 text-indigo-700 font-bold'
+                              : 'text-slate-700 hover:bg-slate-50'
+                          }`}
+                        >
+                          <span>Admin Role</span>
+                          {newMemberRole === 'admin' && (
+                            <CheckCircle2 className="w-3.5 h-3.5 text-indigo-600" />
+                          )}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  <button
+                    type="submit"
+                    className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-4 py-2 rounded-xl shadow-xs transition cursor-pointer"
+                  >
+                    + Add Member
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {/* Existing Members List with Edit & Delete */}
             <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">
               Existing Members ({members.length})
             </h4>
 
-            <div className="divide-y divide-slate-100">
+            <div className="divide-y divide-slate-100 max-h-72 overflow-y-auto pr-1">
               {members.map((m) => (
-                <div key={m.id} className="py-2.5 flex items-center justify-between text-xs">
-                  <div>
-                    <div className="flex items-center gap-1.5">
-                      <span className="font-bold text-slate-900">{m.displayName}</span>
+                <div key={m.id} className="py-2.5 flex items-center justify-between text-xs hover:bg-slate-50/50 px-1 rounded-xl transition">
+                  <div className="min-w-0 pr-2">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="font-bold text-slate-900 truncate">{m.displayName}</span>
                       <span
                         className={`text-[10px] font-bold px-1.5 py-0.2 rounded-md ${
                           m.role === 'admin'
@@ -956,14 +1443,17 @@ export const SettingsView: React.FC = () => {
                         {m.role}
                       </span>
                     </div>
-                    <span className="text-[11px] text-slate-400 font-medium">@{m.username || m.id.replace('user_', '')}</span>
+                    <span className="text-[11px] text-slate-400 font-medium block truncate">
+                      @{m.username || m.id.replace('user_', '')}
+                    </span>
                   </div>
 
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5 shrink-0">
                     {/* Toggle Active status */}
                     <button
+                      type="button"
                       onClick={() => toggleMemberActive(m.id, m.isActive)}
-                      className={`px-2.5 py-1 rounded-lg text-[10px] font-bold cursor-pointer transition ${
+                      className={`px-2 py-1 rounded-lg text-[10px] font-bold cursor-pointer transition ${
                         m.isActive
                           ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-rose-50 hover:text-rose-700'
                           : 'bg-rose-50 text-rose-700 border border-rose-200 hover:bg-emerald-50 hover:text-emerald-700'
@@ -972,12 +1462,24 @@ export const SettingsView: React.FC = () => {
                       {m.isActive ? 'Active' : 'Deactivated'}
                     </button>
 
-                    {/* Toggle Role */}
+                    {/* Edit Member */}
                     <button
-                      onClick={() => updateMemberRole(m.id, m.role === 'admin' ? 'user' : 'admin')}
-                      className="text-[10px] text-indigo-600 hover:underline cursor-pointer"
+                      type="button"
+                      onClick={() => handleStartEditMember(m)}
+                      className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 cursor-pointer transition"
+                      title="Edit Member"
                     >
-                      Make {m.role === 'admin' ? 'User' : 'Admin'}
+                      <Edit2 className="w-3.5 h-3.5" />
+                    </button>
+
+                    {/* Delete Member (Validating extra admin rule) */}
+                    <button
+                      type="button"
+                      onClick={() => handleRequestDeleteMember(m)}
+                      className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 cursor-pointer transition"
+                      title="Delete Member"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
                     </button>
                   </div>
                 </div>
@@ -987,10 +1489,157 @@ export const SettingsView: React.FC = () => {
         </div>
       )}
 
+      {/* MODAL: App Settings Hub (Admin Only) */}
+      {isAdmin && activeModal === 'appSettingsHub' && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in">
+          <div className="w-full max-w-md rounded-2xl bg-white p-5 sm:p-6 shadow-2xl relative max-h-[90vh] flex flex-col">
+            <button
+              onClick={() => setActiveModal(null)}
+              className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-center gap-2.5 mb-1">
+              <div className="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
+                <Sliders className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-slate-900 leading-tight">App Settings Hub</h3>
+                <p className="text-xs text-slate-400">Manage categories, payment options, deposits, currency & version</p>
+              </div>
+            </div>
+
+            <div className="mt-4 divide-y divide-slate-100 overflow-y-auto pr-1">
+              {/* Categories */}
+              <button
+                onClick={() => setActiveModal('categories')}
+                className="w-full py-3 flex items-center justify-between text-left hover:bg-slate-50/80 rounded-xl px-2 transition cursor-pointer"
+              >
+                <div className="flex items-center gap-3 text-slate-700">
+                  <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
+                    <FolderTree className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <span className="text-xs md:text-sm font-semibold block text-slate-800">Categories</span>
+                    <span className="text-[11px] text-slate-400">
+                      Edit names & custom icons ({categories.length} configured)
+                    </span>
+                  </div>
+                </div>
+                <ChevronRight className="w-4 h-4 text-slate-400" />
+              </button>
+
+              {/* Payment Methods */}
+              <button
+                onClick={() => {
+                  setEditingPm(null);
+                  setNewPmName('');
+                  setPmFeedbackMsg(null);
+                  setActiveModal('paymentMethods');
+                }}
+                className="w-full py-3 flex items-center justify-between text-left hover:bg-slate-50/80 rounded-xl px-2 transition cursor-pointer"
+              >
+                <div className="flex items-center gap-3 text-slate-700">
+                  <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+                    <CreditCard className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <span className="text-xs md:text-sm font-semibold block text-slate-800">Payment Methods</span>
+                    <span className="text-[11px] text-slate-400">
+                      Add, edit & delete options ({paymentMethods.length} options)
+                    </span>
+                  </div>
+                </div>
+                <ChevronRight className="w-4 h-4 text-slate-400" />
+              </button>
+
+              {/* Deposit Types */}
+              <button
+                onClick={() => {
+                  setEditingDt(null);
+                  setNewDtName('');
+                  setDtFeedbackMsg(null);
+                  setActiveModal('depositTypes');
+                }}
+                className="w-full py-3 flex items-center justify-between text-left hover:bg-slate-50/80 rounded-xl px-2 transition cursor-pointer"
+              >
+                <div className="flex items-center gap-3 text-slate-700">
+                  <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+                    <Layers className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <span className="text-xs md:text-sm font-semibold block text-slate-800">Deposit Types</span>
+                    <span className="text-[11px] text-slate-400">
+                      Add, edit & delete deposit types ({depositTypes.length} types)
+                    </span>
+                  </div>
+                </div>
+                <ChevronRight className="w-4 h-4 text-slate-400" />
+              </button>
+
+              {/* Currency & Family Name */}
+              <button
+                onClick={() => setActiveModal('general')}
+                className="w-full py-3 flex items-center justify-between text-left hover:bg-slate-50/80 rounded-xl px-2 transition cursor-pointer"
+              >
+                <div className="flex items-center gap-3 text-slate-700">
+                  <div className="w-8 h-8 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
+                    <Tag className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <span className="text-xs md:text-sm font-semibold block text-slate-800">
+                      Currency & Family Name
+                    </span>
+                    <span className="text-[11px] text-slate-400">
+                      {familySettings.familyName} • {familySettings.currency}
+                    </span>
+                  </div>
+                </div>
+                <ChevronRight className="w-4 h-4 text-slate-400" />
+              </button>
+
+              {/* About & Version Control */}
+              <button
+                onClick={() => {
+                  setIsEditingAbout(true);
+                  setAboutVersionInput(familySettings.appVersion || '1.0.0');
+                  setAboutDescInput(
+                    familySettings.aboutDescription ||
+                      'Designed exclusively for family members to record daily expenses, track deposits and contributions, and preserve family financial wellness with offline synchronisation.'
+                  );
+                  setAboutNotesInput(
+                    familySettings.releaseNotes ||
+                      'Initial release featuring multi-member ledger, offline PWA capability, instant analytics, deposit tracking, customizable payment methods and deposit types.'
+                  );
+                  setActiveModal('about');
+                }}
+                className="w-full py-3 flex items-center justify-between text-left hover:bg-slate-50/80 rounded-xl px-2 transition cursor-pointer"
+              >
+                <div className="flex items-center gap-3 text-slate-700">
+                  <div className="w-8 h-8 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center shrink-0">
+                    <Info className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <span className="text-xs md:text-sm font-semibold block text-slate-800">
+                      About & Version Control
+                    </span>
+                    <span className="text-[11px] text-slate-400">
+                      Version {familySettings.appVersion || '1.0.0'} • Edit details & release notes
+                    </span>
+                  </div>
+                </div>
+                <ChevronRight className="w-4 h-4 text-slate-400" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* MODAL 3: Manage Categories (Admin Only) */}
       {isAdmin && activeModal === 'categories' && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-3 sm:p-4 animate-in fade-in">
-          <div className="w-full max-w-lg rounded-3xl bg-white p-4 sm:p-6 shadow-2xl relative max-h-[92vh] overflow-y-auto">
+          <div className="w-full max-w-lg rounded-2xl bg-white p-4 sm:p-6 shadow-2xl relative max-h-[92vh] overflow-y-auto">
             <button
               onClick={() => {
                 setActiveModal(null);
@@ -1002,6 +1651,17 @@ export const SettingsView: React.FC = () => {
             </button>
 
             <div className="flex items-center gap-2 mb-1">
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveModal('appSettingsHub');
+                  setEditingCat(null);
+                }}
+                className="text-slate-400 hover:text-slate-600 p-0.5 cursor-pointer -ml-1"
+                title="Back to App Settings"
+              >
+                <ArrowLeft className="w-5 h-5" />
+              </button>
               <FolderTree className="w-5 h-5 text-indigo-600 shrink-0" />
               <h3 className="text-base font-bold text-slate-900">Expense Categories</h3>
             </div>
@@ -1290,10 +1950,338 @@ export const SettingsView: React.FC = () => {
         </div>
       )}
 
+      {/* MODAL: Payment Methods (Admin Only) */}
+      {isAdmin && activeModal === 'paymentMethods' && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in">
+          <div className="w-full max-w-md rounded-2xl bg-white p-5 shadow-2xl relative max-h-[90vh] flex flex-col">
+            <button
+              onClick={() => {
+                setActiveModal(null);
+                setEditingPm(null);
+                setPmFeedbackMsg(null);
+              }}
+              className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-center gap-2.5 mb-1">
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveModal('appSettingsHub');
+                  setEditingPm(null);
+                }}
+                className="text-slate-400 hover:text-slate-600 p-0.5 cursor-pointer -ml-1"
+                title="Back to App Settings"
+              >
+                <ArrowLeft className="w-5 h-5" />
+              </button>
+              <div className="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                <CreditCard className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-slate-900 leading-tight">Payment Methods</h3>
+                <p className="text-xs text-slate-400">Manage available payment options across the family</p>
+              </div>
+            </div>
+
+            {pmFeedbackMsg && (
+              <div className="my-2.5 p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold text-center animate-in fade-in">
+                {pmFeedbackMsg}
+              </div>
+            )}
+
+            {/* Form: Add or Edit Payment Method */}
+            {editingPm ? (
+              <form onSubmit={handleSaveEditPm} className="mt-3 p-3.5 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-700">Edit Payment Method</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingPm(null);
+                      setEditPmName('');
+                    }}
+                    className="text-[11px] font-semibold text-slate-400 hover:text-slate-600 cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-600 mb-1">Method Name</label>
+                  <input
+                    type="text"
+                    value={editPmName}
+                    onChange={(e) => setEditPmName(e.target.value)}
+                    placeholder="e.g. Credit Card, UPI, Amazon Pay"
+                    className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium"
+                    required
+                  />
+                </div>
+                <div className="flex gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingPm(null);
+                      setEditPmName('');
+                    }}
+                    className="flex-1 py-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-white cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="flex-1 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-xs cursor-pointer transition"
+                  >
+                    Save Changes
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <form onSubmit={handleAddPaymentMethod} className="mt-3 p-3.5 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-600 mb-1">Add New Payment Method</label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={newPmName}
+                      onChange={(e) => setNewPmName(e.target.value)}
+                      placeholder="e.g. PayPal, Apple Pay, Cheque"
+                      className="flex-1 bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium"
+                      required
+                    />
+                    <button
+                      type="submit"
+                      className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl shadow-xs cursor-pointer transition shrink-0"
+                    >
+                      + Add
+                    </button>
+                  </div>
+                </div>
+              </form>
+            )}
+
+            {/* List of existing payment methods */}
+            <div className="mt-3.5 flex-1 overflow-y-auto pr-1 space-y-2">
+              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                Configured Methods ({paymentMethods.length})
+              </span>
+              {paymentMethods.map((pm) => (
+                <div
+                  key={pm.id}
+                  className="flex items-center justify-between p-2.5 rounded-xl border border-slate-200/90 bg-white hover:border-slate-300 transition"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-slate-600">
+                      <CreditCard className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <span className="text-xs font-bold text-slate-800">{pm.name}</span>
+                      {pm.name.toLowerCase() === 'cash' && (
+                        <span className="ml-2 text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded font-semibold">
+                          System Default
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingPm(pm);
+                        setEditPmName(pm.name);
+                      }}
+                      className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 cursor-pointer transition"
+                      title="Edit Payment Method"
+                    >
+                      <Edit2 className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDeletingPmId(pm.id)}
+                      className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 cursor-pointer transition"
+                      title="Delete Payment Method"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: Deposit Types (Admin Only) */}
+      {isAdmin && activeModal === 'depositTypes' && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in">
+          <div className="w-full max-w-md rounded-2xl bg-white p-5 shadow-2xl relative max-h-[90vh] flex flex-col">
+            <button
+              onClick={() => {
+                setActiveModal(null);
+                setEditingDt(null);
+                setDtFeedbackMsg(null);
+              }}
+              className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-center gap-2.5 mb-1">
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveModal('appSettingsHub');
+                  setEditingDt(null);
+                }}
+                className="text-slate-400 hover:text-slate-600 p-0.5 cursor-pointer -ml-1"
+                title="Back to App Settings"
+              >
+                <ArrowLeft className="w-5 h-5" />
+              </button>
+              <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                <Layers className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-slate-900 leading-tight">Deposit Types</h3>
+                <p className="text-xs text-slate-400">Manage available deposit categories and income sources</p>
+              </div>
+            </div>
+
+            {dtFeedbackMsg && (
+              <div className="my-2.5 p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold text-center animate-in fade-in">
+                {dtFeedbackMsg}
+              </div>
+            )}
+
+            {/* Form: Add or Edit Deposit Type */}
+            {editingDt ? (
+              <form onSubmit={handleSaveEditDepositType} className="mt-3 p-3.5 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-700">Edit Deposit Type</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingDt(null);
+                      setEditDtName('');
+                    }}
+                    className="text-[11px] font-semibold text-slate-400 hover:text-slate-600 cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-600 mb-1">Deposit Type Name</label>
+                  <input
+                    type="text"
+                    value={editDtName}
+                    onChange={(e) => setEditDtName(e.target.value)}
+                    placeholder="e.g. Salary, Rental, Dividend, Gift"
+                    className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500 font-medium"
+                    required
+                  />
+                </div>
+                <div className="flex gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingDt(null);
+                      setEditDtName('');
+                    }}
+                    className="flex-1 py-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-white cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="flex-1 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs cursor-pointer transition"
+                  >
+                    Save Changes
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <form onSubmit={handleAddDepositType} className="mt-3 p-3.5 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-600 mb-1">Add New Deposit Type</label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={newDtName}
+                      onChange={(e) => setNewDtName(e.target.value)}
+                      placeholder="e.g. Freelance, Royalty, Refund"
+                      className="flex-1 bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500 font-medium"
+                      required
+                    />
+                    <button
+                      type="submit"
+                      className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-xs cursor-pointer transition shrink-0"
+                    >
+                      + Add
+                    </button>
+                  </div>
+                </div>
+              </form>
+            )}
+
+            {/* List of existing deposit types */}
+            <div className="mt-3.5 flex-1 overflow-y-auto pr-1 space-y-2">
+              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                Configured Types ({depositTypes.length})
+              </span>
+              {depositTypes.map((dt) => (
+                <div
+                  key={dt.id}
+                  className="flex items-center justify-between p-2.5 rounded-xl border border-slate-200/90 bg-white hover:border-slate-300 transition"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                      <Layers className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <span className="text-xs font-bold text-slate-800">{dt.name}</span>
+                      {(dt.isDefault || dt.name.toLowerCase() === 'contribution') && (
+                        <span className="ml-2 text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded font-semibold">
+                          Default
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingDt(dt);
+                        setEditDtName(dt.name);
+                      }}
+                      className="p-1.5 rounded-lg text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 cursor-pointer transition"
+                      title="Edit Deposit Type"
+                    >
+                      <Edit2 className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDeletingDtId(dt.id)}
+                      className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 cursor-pointer transition"
+                      title="Delete Deposit Type"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* MODAL 4: General Settings (Admin Only) */}
       {isAdmin && activeModal === 'general' && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in">
-          <div className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-2xl relative">
+          <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl relative">
             <button
               onClick={() => setActiveModal(null)}
               className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 p-1"
@@ -1301,7 +2289,17 @@ export const SettingsView: React.FC = () => {
               <X className="w-5 h-5" />
             </button>
 
-            <h3 className="text-base font-bold text-slate-900 mb-1">General Settings</h3>
+            <div className="flex items-center gap-2 mb-1">
+              <button
+                type="button"
+                onClick={() => setActiveModal('appSettingsHub')}
+                className="text-slate-400 hover:text-slate-600 p-0.5 cursor-pointer -ml-1"
+                title="Back to App Settings"
+              >
+                <ArrowLeft className="w-5 h-5" />
+              </button>
+              <h3 className="text-base font-bold text-slate-900">Currency & Family Name</h3>
+            </div>
             <p className="text-xs text-slate-400 mb-4">Update family branding and currency</p>
 
             <form onSubmit={handleSaveGeneral} className="space-y-4">
@@ -1318,17 +2316,47 @@ export const SettingsView: React.FC = () => {
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">Currency</label>
-                <select
-                  value={currencyInput}
-                  onChange={(e) => setCurrencyInput(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800"
-                >
-                  {SUPPORTED_CURRENCIES.map((cur) => (
-                    <option key={cur.code} value={cur.symbol}>
-                      {cur.label}
-                    </option>
-                  ))}
-                </select>
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setShowCurrencyDropdown(!showCurrencyDropdown)}
+                    className="w-full bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-slate-800 flex items-center justify-between cursor-pointer focus:outline-none transition shadow-2xs"
+                  >
+                    <span className="truncate">
+                      {SUPPORTED_CURRENCIES.find((c) => c.symbol === currencyInput)?.label || currencyInput}
+                    </span>
+                    <ChevronDown
+                      className={`w-3.5 h-3.5 text-slate-400 shrink-0 transition-transform ${
+                        showCurrencyDropdown ? 'rotate-180' : ''
+                      }`}
+                    />
+                  </button>
+
+                  {showCurrencyDropdown && (
+                    <div className="absolute left-0 right-0 top-full mt-1.5 bg-white rounded-xl shadow-xl border border-slate-100 py-1.5 z-50 max-h-52 overflow-y-auto animate-in fade-in zoom-in-95">
+                      {SUPPORTED_CURRENCIES.map((cur) => (
+                        <button
+                          key={cur.code}
+                          type="button"
+                          onClick={() => {
+                            setCurrencyInput(cur.symbol);
+                            setShowCurrencyDropdown(false);
+                          }}
+                          className={`w-full text-left px-3 py-2 text-xs font-semibold transition flex items-center justify-between cursor-pointer ${
+                            currencyInput === cur.symbol
+                              ? 'bg-indigo-50 text-indigo-700 font-bold'
+                              : 'text-slate-700 hover:bg-slate-50'
+                          }`}
+                        >
+                          <span>{cur.label}</span>
+                          {currencyInput === cur.symbol && (
+                            <CheckCircle2 className="w-3.5 h-3.5 text-indigo-600" />
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div className="flex gap-2 pt-2">
@@ -1354,7 +2382,7 @@ export const SettingsView: React.FC = () => {
       {/* MODAL 5: Sync & Offline Status */}
       {activeModal === 'sync' && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in">
-          <div className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-2xl relative">
+          <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl relative">
             <button
               onClick={() => setActiveModal(null)}
               className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 p-1"
@@ -1411,7 +2439,7 @@ export const SettingsView: React.FC = () => {
       {/* MODAL 6: Activity Logs (Admin Only) */}
       {isAdmin && activeModal === 'logs' && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in">
-          <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl relative max-h-[85vh] overflow-y-auto">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl relative max-h-[85vh] overflow-y-auto">
             <button
               onClick={() => setActiveModal(null)}
               className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 p-1"
@@ -1445,32 +2473,169 @@ export const SettingsView: React.FC = () => {
         </div>
       )}
 
-      {/* MODAL 7: About App */}
+      {/* MODAL 7: About App & Version Control */}
       {activeModal === 'about' && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in">
-          <div className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-2xl relative text-center">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto">
             <button
-              onClick={() => setActiveModal(null)}
-              className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 p-1"
+              onClick={() => {
+                setActiveModal(null);
+                setIsEditingAbout(false);
+              }}
+              className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
             >
               <X className="w-5 h-5" />
             </button>
 
-            <div className="w-14 h-14 rounded-2xl bg-indigo-600 text-white mx-auto flex items-center justify-center mb-3 shadow-md">
-              <Smartphone className="w-7 h-7" />
-            </div>
+            {isEditingAbout && isAdmin ? (
+              <form onSubmit={handleSaveAbout} className="space-y-3.5">
+                <div className="flex items-center gap-2.5 mb-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsEditingAbout(false);
+                      setActiveModal('appSettingsHub');
+                    }}
+                    className="text-slate-400 hover:text-slate-600 p-0.5 cursor-pointer -ml-1"
+                    title="Back to App Settings"
+                  >
+                    <ArrowLeft className="w-5 h-5" />
+                  </button>
+                  <div className="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                    <Edit2 className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-slate-900 leading-tight">Edit App & Version</h3>
+                    <p className="text-xs text-slate-400">Update app version and release notes for family</p>
+                  </div>
+                </div>
 
-            <h3 className="text-lg font-bold text-slate-900">Family Expense Tracker</h3>
-            <p className="text-xs text-indigo-600 font-semibold mt-0.5">Version 1.0.0 (PWA)</p>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-600 mb-1">App Version (e.g. 1.0.1)</label>
+                  <input
+                    type="text"
+                    value={aboutVersionInput}
+                    onChange={(e) => setAboutVersionInput(e.target.value)}
+                    placeholder="1.0.0"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    required
+                  />
+                </div>
 
-            <p className="text-xs text-slate-500 mt-3 leading-relaxed">
-              Designed exclusively for family members to record daily expenses, track deposits and
-              contributions, and preserve family financial wellness with offline synchronisation.
-            </p>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-600 mb-1">About App Description</label>
+                  <textarea
+                    rows={3}
+                    value={aboutDescInput}
+                    onChange={(e) => setAboutDescInput(e.target.value)}
+                    placeholder="Describe the application purpose..."
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none font-medium"
+                  />
+                </div>
 
-            <div className="mt-5 pt-4 border-t border-slate-100">
-              <PWAInstallButton compact={false} />
-            </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-600 mb-1">Release Notes & Version Log</label>
+                  <textarea
+                    rows={3}
+                    value={aboutNotesInput}
+                    onChange={(e) => setAboutNotesInput(e.target.value)}
+                    placeholder="Describe latest release improvements and changes..."
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none font-medium"
+                  />
+                </div>
+
+                <div className="flex gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsEditingAbout(false)}
+                    className="flex-1 py-2.5 rounded-xl border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-50 cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="flex-1 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-xs cursor-pointer transition"
+                  >
+                    Save Version & Info
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <div className="text-center">
+                <div className="w-16 h-16 rounded-3xl bg-gradient-to-tr from-indigo-600 to-indigo-500 flex items-center justify-center shadow-lg shadow-indigo-500/25 p-2.5 mx-auto mb-3">
+                  <svg
+                    className="w-full h-full drop-shadow-xs"
+                    viewBox="0 0 200 200"
+                    fill="none"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M 100,25 L 170,85 L 170,165 Q 170,175 160,175 L 40,175 Q 30,175 30,165 L 30,85 Z"
+                      fill="none"
+                      stroke="#FFFFFF"
+                      strokeWidth="10"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                    <path
+                      d="M 100,62 C 92,50 78,56 78,70 C 78,85 95,98 100,105 C 105,98 122,85 122,70 C 122,56 108,50 100,62 Z"
+                      fill="#F472B6"
+                    />
+                    <path d="M 35,130 Q 15,115 10,95 Q 28,95 42,120 Z" fill="#34D399" />
+                    <path d="M 165,130 Q 185,115 190,95 Q 172,95 158,120 Z" fill="#34D399" />
+                    <circle cx="65" cy="115" r="14" fill="#FFFFFF" />
+                    <path d="M 45,165 C 45,142 58,135 65,135 C 72,135 85,142 85,165 Z" fill="#C7D2FE" />
+                    <circle cx="135" cy="115" r="14" fill="#FFFFFF" />
+                    <path d="M 115,165 C 115,142 128,135 135,135 C 142,135 155,142 155,165 Z" fill="#67E8F9" />
+                    <circle cx="100" cy="125" r="12" fill="#FFFFFF" />
+                    <path d="M 85,165 C 85,148 95,142 100,142 C 105,142 115,148 115,165 Z" fill="#FBCFE8" />
+                  </svg>
+                </div>
+
+                <h3 className="text-lg font-bold text-slate-900">
+                  {familySettings.familyName || 'Family'} Expense Tracker
+                </h3>
+                <div className="inline-flex items-center gap-1.5 mt-1 px-2.5 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-100 text-xs font-bold">
+                  <span>Version {familySettings.appVersion || '1.0.0'}</span>
+                </div>
+
+                <p className="text-xs text-slate-600 mt-3.5 leading-relaxed text-left bg-slate-50 p-3 rounded-xl border border-slate-100">
+                  {familySettings.aboutDescription ||
+                    'Designed exclusively for family members to record daily expenses, track deposits and contributions, and preserve family financial wellness with offline synchronisation.'}
+                </p>
+
+                {/* Release Notes / Version Control */}
+                <div className="mt-3.5 text-left bg-slate-50 p-3 rounded-xl border border-slate-100 space-y-1">
+                  <div className="text-[11px] font-bold text-slate-700 flex items-center gap-1.5">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>Version Details & Release Notes</span>
+                  </div>
+                  <p className="text-[11px] text-slate-500 leading-normal">
+                    {familySettings.releaseNotes ||
+                      'Initial release featuring multi-member ledger, offline capability, instant analytics, deposit tracking, customizable payment methods and deposit types.'}
+                  </p>
+                </div>
+
+                {isAdmin && (
+                  <button
+                    onClick={() => {
+                      setAboutVersionInput(familySettings.appVersion || '1.0.0');
+                      setAboutDescInput(familySettings.aboutDescription || '');
+                      setAboutNotesInput(familySettings.releaseNotes || '');
+                      setIsEditingAbout(true);
+                    }}
+                    className="w-full mt-4 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2 rounded-xl text-xs flex items-center justify-center gap-1.5 cursor-pointer transition"
+                  >
+                    <Edit2 className="w-3.5 h-3.5" />
+                    <span>Edit Version & App Details</span>
+                  </button>
+                )}
+
+                <div className="mt-4 pt-3 border-t border-slate-100">
+                  <PWAInstallButton compact={false} />
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -1478,7 +2643,7 @@ export const SettingsView: React.FC = () => {
       {/* MODAL 8: App Lock PIN & Biometrics */}
       {activeModal === 'applock' && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in">
-          <div className="w-full max-w-sm rounded-3xl bg-white p-5 sm:p-6 shadow-2xl relative">
+          <div className="w-full max-w-sm rounded-2xl bg-white p-5 sm:p-6 shadow-2xl relative">
             <button
               onClick={() => {
                 setActiveModal(null);
@@ -1636,10 +2801,47 @@ export const SettingsView: React.FC = () => {
         onCancel={() => setDeletingCatId(null)}
       />
 
+      {/* Confirm Payment Method Delete */}
+      <ConfirmModal
+        isOpen={!!deletingPmId}
+        title="Delete Payment Method?"
+        message="Are you sure you want to delete this payment method? It will no longer appear as an option in new transactions."
+        onConfirm={async () => {
+          if (deletingPmId) {
+            await deletePaymentMethod(deletingPmId);
+            setDeletingPmId(null);
+          }
+        }}
+        onCancel={() => setDeletingPmId(null)}
+      />
+
+      {/* Confirm Deposit Type Delete */}
+      <ConfirmModal
+        isOpen={!!deletingDtId}
+        title="Delete Deposit Type?"
+        message="Are you sure you want to delete this deposit type? It will no longer appear as an option in future deposits."
+        onConfirm={handleConfirmDeleteDepositType}
+        onCancel={() => setDeletingDtId(null)}
+      />
+
+      {/* Confirm Member Delete */}
+      <ConfirmModal
+        isOpen={!!deletingMember}
+        title="Delete Family Member?"
+        message={
+          deletingMember
+            ? `Are you sure you want to delete member "${deletingMember.displayName}" (@${deletingMember.username})? They will no longer be able to log in.`
+            : ''
+        }
+        onConfirm={handleConfirmDeleteMember}
+        onCancel={() => setDeletingMember(null)}
+      />
+
+
       {/* Wipe Out Data Confirmation Modal (Admin Only) */}
       {showWipeModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-xs p-4 animate-in fade-in">
-          <div className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-2xl relative border-2 border-rose-200">
+          <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl relative border-2 border-rose-200">
             <button
               onClick={() => {
                 setShowWipeModal(false);

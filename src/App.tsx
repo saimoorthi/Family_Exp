@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { CheckCircle2, AlertTriangle, Info, X } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { DataProvider, useData } from './context/DataContext';
 import { LoginView } from './components/auth/LoginView';
@@ -19,6 +20,7 @@ import { checkAndSeedInitialData } from './lib/seedSampleData';
 
 function MainAppContent() {
   const { userProfile, isLoading } = useAuth();
+  const { toast, dismissToast } = useData();
   const [currentTab, setCurrentTab] = useState<ActiveTab>(() => {
     return userProfile?.defaultModule || 'dashboard';
   });
@@ -31,10 +33,29 @@ function MainAppContent() {
     }
   }, [userProfile?.id]);
 
-  // App Lock State (PIN / Biometric)
+  // App Lock State (PIN / Biometric) - scoped per user
   const [isAppLocked, setIsAppLocked] = useState<boolean>(() => {
-    return localStorage.getItem('family_app_lock_enabled') === 'true';
+    // Clear legacy un-scoped device keys so other members are not accidentally locked
+    try {
+      localStorage.removeItem('family_app_lock_enabled');
+      localStorage.removeItem('family_app_lock_pin');
+      localStorage.removeItem('family_app_lock_biometric');
+    } catch {
+      // ignore
+    }
+    return false;
   });
+
+  // Sync app lock state when userProfile loads or changes
+  useEffect(() => {
+    if (userProfile?.id) {
+      const userLockEnabled =
+        localStorage.getItem(`family_app_lock_enabled_${userProfile.id}`) === 'true';
+      setIsAppLocked(userLockEnabled);
+    } else {
+      setIsAppLocked(false);
+    }
+  }, [userProfile?.id]);
 
   // Global Quick Add Modals
   const [isAddExpenseOpen, setIsAddExpenseOpen] = useState(false);
@@ -48,13 +69,17 @@ function MainAppContent() {
   // Listen to visibilitychange to lock when app is backgrounded or tab switched
   useEffect(() => {
     const handleVisibilityChange = () => {
-      if (document.hidden && localStorage.getItem('family_app_lock_enabled') === 'true') {
-        setIsAppLocked(true);
+      if (document.hidden && userProfile?.id) {
+        const userLockEnabled =
+          localStorage.getItem(`family_app_lock_enabled_${userProfile.id}`) === 'true';
+        if (userLockEnabled) {
+          setIsAppLocked(true);
+        }
       }
     };
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, []);
+  }, [userProfile?.id]);
 
   // Seed sample initial data on first admin login if database is blank
   useEffect(() => {
@@ -146,6 +171,37 @@ function MainAppContent() {
           isOpen={isAddDepositOpen}
           onClose={() => setIsAddDepositOpen(false)}
         />
+
+        {/* Global Toast Confirmation Message */}
+        {toast && (
+          <div className="fixed top-5 left-1/2 -translate-x-1/2 z-[9999] max-w-md w-[92%] sm:w-auto transition-all duration-300 pointer-events-auto animate-in fade-in slide-in-from-top-4">
+            <div
+              className={`px-4 py-3 rounded-2xl shadow-xl flex items-center gap-3 text-xs font-semibold backdrop-blur-md border ${
+                toast.type === 'error'
+                  ? 'bg-rose-950/95 text-rose-100 border-rose-800/80 shadow-rose-950/40'
+                  : toast.type === 'info'
+                  ? 'bg-slate-900/95 text-slate-100 border-slate-700/80 shadow-slate-950/40'
+                  : 'bg-emerald-950/95 text-emerald-100 border-emerald-700/80 shadow-emerald-950/40'
+              }`}
+            >
+              {toast.type === 'error' ? (
+                <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
+              ) : toast.type === 'info' ? (
+                <Info className="w-4 h-4 text-sky-400 shrink-0" />
+              ) : (
+                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+              )}
+              <span className="flex-1 text-[13px] tracking-tight">{toast.message}</span>
+              <button
+                onClick={dismissToast}
+                className="p-1 text-slate-400 hover:text-white rounded-lg transition shrink-0 cursor-pointer"
+                title="Dismiss"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

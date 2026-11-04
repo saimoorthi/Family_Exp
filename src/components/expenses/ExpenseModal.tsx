@@ -1,5 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { X, Upload, Trash2, ReceiptIndianRupee, ChevronDown, Lock } from 'lucide-react';
+import {
+  X,
+  Upload,
+  Trash2,
+  ReceiptIndianRupee,
+  ChevronDown,
+  Lock,
+  CheckCircle2,
+  User,
+  CreditCard,
+} from 'lucide-react';
 import { Expense } from '../../types';
 import { useData } from '../../context/DataContext';
 import { useAuth } from '../../context/AuthContext';
@@ -30,6 +40,11 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Custom Dropdown Open States (matching the unified in-app dropdown UI)
+  const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
+  const [showPaidByDropdown, setShowPaidByDropdown] = useState(false);
+  const [showPaymentMethodDropdown, setShowPaymentMethodDropdown] = useState(false);
+
   useEffect(() => {
     if (expenseToEdit) {
       setDate(expenseToEdit.date);
@@ -50,6 +65,9 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
       setDescription('');
       setReceiptUrl(undefined);
     }
+    setShowCategoryDropdown(false);
+    setShowPaidByDropdown(false);
+    setShowPaymentMethodDropdown(false);
     setError(null);
   }, [expenseToEdit, isOpen, categories, members, userProfile]);
 
@@ -138,7 +156,7 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-150">
-      <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto">
+      <div className="w-full max-w-xl md:max-w-2xl rounded-2xl bg-white p-5 md:p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto">
         {/* Header - Red Add Expense Icon */}
         <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
           <div className="flex items-center gap-2.5">
@@ -158,210 +176,318 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
         </div>
 
         {error && (
-          <div className="mb-4 p-3 rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 text-xs">
+          <div className="mb-4 p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs">
             {error}
           </div>
         )}
 
-        {/* Form fields strictly ordered:
-            1. Date
-            2. Amount
-            3. Expense Title
-            4. Category (Dropdown)
-            5. Paid By (Dropdown for admin, current user for others)
-            6. Payment Method (Dropdown)
-            7. Description / Remarks
+        {/* Form fields in clean 2-column layout on both mobile and desktop:
+            1. Date | 2. Amount
+            3. Expense Title | 4. Category (Dropdown)
+            5. Paid By | 6. Payment Method (Dropdown)
+            7. Description / Remarks (2-column span)
+            Receipt Attachment (2-column span)
         */}
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {/* 1. Date */}
-          <div>
-            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-              1. Date *
-            </label>
-            <input
-              type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-3.5 py-2.5 text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500"
-              required
-            />
-          </div>
-
-          {/* 2. Amount */}
-          <div>
-            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-              2. Amount *
-            </label>
-            <div className="relative">
-              <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 font-bold text-sm select-none">
-                ₹
-              </span>
+        <form onSubmit={handleSubmit} className="space-y-3.5 sm:space-y-4">
+          <div className="grid grid-cols-2 gap-2.5 sm:gap-4">
+            {/* 1. Date */}
+            <div>
+              <label className="block text-[10px] sm:text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                1. Date *
+              </label>
               <input
-                type="number"
-                step="any"
-                min="0.01"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-                placeholder="0.00"
-                className="w-full bg-slate-50 border border-slate-200 rounded-2xl pl-8 pr-3.5 py-2.5 text-sm font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500"
+                type="date"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-2.5 sm:px-3.5 py-2 sm:py-2.5 text-xs sm:text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500"
                 required
               />
             </div>
-          </div>
 
-          {/* 3. Expense Title */}
-          <div>
-            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-              3. Expense Title *
-            </label>
-            <input
-              type="text"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="e.g. Weekly Grocery shopping, Electricity bill"
-              className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-2.5 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500"
-              required
-            />
-          </div>
-
-          {/* 4. Category (Styled Dropdown) */}
-          <div>
-            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-              4. Category *
-            </label>
-            <div className="relative">
-              <select
-                value={category}
-                onChange={(e) => setCategory(e.target.value)}
-                className="w-full appearance-none bg-slate-50 border border-slate-200 rounded-2xl px-4 py-2.5 pr-10 text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 cursor-pointer"
-                required
-              >
-                {categories.map((cat) => (
-                  <option key={cat.id} value={cat.name}>
-                    {cat.name}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-            </div>
-          </div>
-
-          {/* 5. Paid By (Dropdown for admin, default current user & locked for others) */}
-          <div>
-            <div className="flex items-center justify-between mb-1.5">
-              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
-                5. Paid By *
+            {/* 2. Amount */}
+            <div>
+              <label className="block text-[10px] sm:text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                2. Amount *
               </label>
-              {isAdmin && (
-                <span className="text-[10px] text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md font-semibold">
-                  Admin: Select member
+              <div className="relative">
+                <span className="absolute left-2.5 sm:left-3.5 top-1/2 -translate-y-1/2 text-slate-500 font-bold text-xs sm:text-sm select-none">
+                  ₹
                 </span>
+                <input
+                  type="number"
+                  step="any"
+                  min="0.01"
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                  placeholder="0.00"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-6 sm:pl-8 pr-2.5 sm:pr-3.5 py-2 sm:py-2.5 text-xs sm:text-sm font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500"
+                  required
+                />
+              </div>
+            </div>
+
+            {/* 3. Expense Title (Spanning full width for comfortable data entry) */}
+            <div className="col-span-2">
+              <label className="block text-[10px] sm:text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                3. Expense Title *
+              </label>
+              <input
+                type="text"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="What did you spend on? (e.g. Grocery shopping, Electricity bill, Petrol)"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 sm:py-3 text-xs sm:text-sm font-semibold text-slate-800 placeholder:text-slate-400 placeholder:font-normal focus:bg-white focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition shadow-2xs"
+                required
+              />
+            </div>
+
+            {/* 4. Category (Unified Custom Dropdown) */}
+            <div className="relative">
+              <label className="block text-[10px] sm:text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                4. Category *
+              </label>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowCategoryDropdown(!showCategoryDropdown);
+                  setShowPaidByDropdown(false);
+                  setShowPaymentMethodDropdown(false);
+                }}
+                className="w-full bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl px-2.5 sm:px-3 py-2 sm:py-2.5 text-xs sm:text-sm font-semibold text-slate-800 flex items-center justify-between cursor-pointer focus:outline-none transition shadow-2xs"
+              >
+                <div className="flex items-center gap-1.5 sm:gap-2 truncate">
+                  <span
+                    className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full shrink-0"
+                    style={{
+                      backgroundColor:
+                        categories.find((c) => c.name.toLowerCase() === category.toLowerCase())?.color ||
+                        '#F43F5E',
+                    }}
+                  />
+                  <span className="truncate">{category || 'Select Category'}</span>
+                </div>
+                <ChevronDown
+                  className={`w-3.5 h-3.5 text-slate-400 shrink-0 transition-transform ${
+                    showCategoryDropdown ? 'rotate-180' : ''
+                  }`}
+                />
+              </button>
+
+              {showCategoryDropdown && (
+                <div className="absolute left-0 right-0 top-full mt-1.5 bg-white rounded-xl shadow-xl border border-slate-100 py-1.5 z-50 max-h-52 overflow-y-auto animate-in fade-in zoom-in-95">
+                  {categories.map((cat) => (
+                    <button
+                      key={cat.id}
+                      type="button"
+                      onClick={() => {
+                        setCategory(cat.name);
+                        setShowCategoryDropdown(false);
+                      }}
+                      className={`w-full text-left px-3 py-2 text-xs font-semibold transition flex items-center justify-between cursor-pointer ${
+                        category === cat.name
+                          ? 'bg-rose-50 text-rose-700 font-bold'
+                          : 'text-slate-700 hover:bg-slate-50'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 truncate">
+                        <span
+                          className="w-2.5 h-2.5 rounded-full shrink-0"
+                          style={{ backgroundColor: cat.color }}
+                        />
+                        <span className="truncate">{cat.name}</span>
+                      </div>
+                      {category === cat.name && (
+                        <CheckCircle2 className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                      )}
+                    </button>
+                  ))}
+                </div>
               )}
             </div>
-            {isAdmin ? (
-              <div className="relative">
-                <select
-                  value={paidBy}
-                  onChange={(e) => setPaidBy(e.target.value)}
-                  className="w-full appearance-none bg-slate-50 border border-slate-200 rounded-2xl px-4 py-2.5 pr-10 text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 cursor-pointer"
-                  required
-                >
-                  {members.map((m) => (
-                    <option key={m.id} value={m.id}>
-                      {m.displayName} {m.id === userProfile?.id ? '(You)' : ''}
-                    </option>
-                  ))}
-                  {members.length === 0 && userProfile && (
-                    <option value={userProfile.id}>{userProfile.displayName} (You)</option>
-                  )}
-                </select>
-                <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-              </div>
-            ) : (
-              <div className="flex items-center justify-between bg-slate-100/90 border border-slate-200 rounded-2xl px-4 py-2.5 text-sm font-semibold text-slate-700 select-none">
-                <span>{userProfile?.displayName || 'You'} (You)</span>
-                <span className="text-[11px] font-bold text-slate-500 flex items-center gap-1 bg-slate-200/80 px-2 py-0.5 rounded-md">
-                  <Lock className="w-3 h-3 text-slate-400" />
-                  Self
-                </span>
-              </div>
-            )}
-          </div>
 
-          {/* 6. Payment Method (Dropdown, default Cash or user profile setting) */}
-          <div>
-            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-              6. Payment Method *
-            </label>
+            {/* 5. Paid By (Unified Custom Dropdown for Admin, locked Self for Member) */}
             <div className="relative">
-              <select
-                value={paymentMethod}
-                onChange={(e) => setPaymentMethod(e.target.value)}
-                className="w-full appearance-none bg-slate-50 border border-slate-200 rounded-2xl px-4 py-2.5 pr-10 text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 cursor-pointer"
-                required
-              >
-                {paymentMethods && paymentMethods.length > 0 ? (
-                  paymentMethods.map((pm) => (
-                    <option key={pm.id} value={pm.name}>
-                      {pm.name}
-                    </option>
-                  ))
-                ) : (
-                  PAYMENT_METHODS.map((pm) => (
-                    <option key={pm} value={pm}>
-                      {pm}
-                    </option>
-                  ))
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-[10px] sm:text-xs font-bold text-slate-700 uppercase tracking-wider truncate">
+                  5. Paid By *
+                </label>
+                {isAdmin && (
+                  <span className="text-[9px] text-amber-700 bg-amber-50 px-1.5 py-0.2 rounded font-semibold hidden sm:inline">
+                    Admin
+                  </span>
                 )}
-              </select>
-              <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-            </div>
-          </div>
-
-          {/* 7. Description / Remarks */}
-          <div>
-            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-              7. Description / Remarks (Optional)
-            </label>
-            <textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              rows={2}
-              placeholder="Add optional notes, item details, or invoice ref..."
-              className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-3.5 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500"
-            />
-          </div>
-
-          {/* Optional Receipt Attachment */}
-          <div>
-            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-              Receipt Attachment (Optional)
-            </label>
-            {receiptUrl ? (
-              <div className="relative rounded-2xl overflow-hidden border border-slate-200 max-h-36 bg-slate-50 flex items-center justify-center group">
-                <img src={receiptUrl} alt="Receipt preview" className="object-contain max-h-36 w-full" />
-                <button
-                  type="button"
-                  onClick={() => setReceiptUrl(undefined)}
-                  className="absolute top-2 right-2 bg-rose-600 text-white p-1.5 rounded-xl shadow-md hover:bg-rose-700 transition cursor-pointer"
-                  title="Remove receipt"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
               </div>
-            ) : (
-              <label className="flex flex-col items-center justify-center p-3.5 border-2 border-dashed border-slate-200 rounded-2xl cursor-pointer hover:bg-slate-50 transition text-slate-400 hover:text-slate-600">
-                <Upload className="w-5 h-5 mb-1 text-slate-400" />
-                <span className="text-xs font-semibold">Upload receipt photo or invoice</span>
-                <span className="text-[10px] text-slate-400 mt-0.5">JPG, PNG up to 2MB</span>
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleReceiptUpload}
-                  className="hidden"
-                />
+              {isAdmin ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowPaidByDropdown(!showPaidByDropdown);
+                      setShowCategoryDropdown(false);
+                      setShowPaymentMethodDropdown(false);
+                    }}
+                    className="w-full bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl px-2.5 sm:px-3 py-2 sm:py-2.5 text-xs sm:text-sm font-semibold text-slate-800 flex items-center justify-between cursor-pointer focus:outline-none transition shadow-2xs"
+                  >
+                    <div className="flex items-center gap-1.5 sm:gap-2 truncate">
+                      <User className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                      <span className="truncate">
+                        {members.find((m) => m.id === paidBy)?.displayName ||
+                          userProfile?.displayName ||
+                          'Select Member'}
+                      </span>
+                    </div>
+                    <ChevronDown
+                      className={`w-3.5 h-3.5 text-slate-400 shrink-0 transition-transform ${
+                        showPaidByDropdown ? 'rotate-180' : ''
+                      }`}
+                    />
+                  </button>
+
+                  {showPaidByDropdown && (
+                    <div className="absolute left-0 right-0 top-full mt-1.5 bg-white rounded-xl shadow-xl border border-slate-100 py-1.5 z-50 max-h-52 overflow-y-auto animate-in fade-in zoom-in-95">
+                      {members.map((m) => (
+                        <button
+                          key={m.id}
+                          type="button"
+                          onClick={() => {
+                            setPaidBy(m.id);
+                            setShowPaidByDropdown(false);
+                          }}
+                          className={`w-full text-left px-3 py-2 text-xs font-semibold transition flex items-center justify-between cursor-pointer ${
+                            paidBy === m.id
+                              ? 'bg-rose-50 text-rose-700 font-bold'
+                              : 'text-slate-700 hover:bg-slate-50'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2 truncate">
+                            <span className="w-5 h-5 rounded-full bg-slate-200 text-slate-700 text-[10px] font-bold flex items-center justify-center shrink-0">
+                              {m.displayName.charAt(0).toUpperCase()}
+                            </span>
+                            <span className="truncate">
+                              {m.displayName} {m.id === userProfile?.id ? '(You)' : ''}
+                            </span>
+                          </div>
+                          {paidBy === m.id && (
+                            <CheckCircle2 className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="flex items-center justify-between bg-slate-100/90 border border-slate-200 rounded-xl px-2.5 sm:px-3 py-2 sm:py-2.5 text-xs sm:text-sm font-semibold text-slate-700 select-none">
+                  <span className="truncate">{userProfile?.displayName || 'You'}</span>
+                  <span className="text-[10px] font-bold text-slate-500 flex items-center gap-1 bg-slate-200/80 px-1.5 py-0.5 rounded-md shrink-0">
+                    <Lock className="w-2.5 h-2.5 text-slate-400" />
+                    Self
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* 6. Payment Method (Unified Custom Dropdown) */}
+            <div className="col-span-2 relative">
+              <label className="block text-[10px] sm:text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                6. Payment Method *
               </label>
-            )}
+              <button
+                type="button"
+                onClick={() => {
+                  setShowPaymentMethodDropdown(!showPaymentMethodDropdown);
+                  setShowCategoryDropdown(false);
+                  setShowPaidByDropdown(false);
+                }}
+                className="w-full bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl px-3 py-2 sm:py-2.5 text-xs sm:text-sm font-semibold text-slate-800 flex items-center justify-between cursor-pointer focus:outline-none transition shadow-2xs"
+              >
+                <div className="flex items-center gap-2 truncate">
+                  <CreditCard className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                  <span className="truncate">{paymentMethod || 'Cash'}</span>
+                </div>
+                <ChevronDown
+                  className={`w-3.5 h-3.5 text-slate-400 shrink-0 transition-transform ${
+                    showPaymentMethodDropdown ? 'rotate-180' : ''
+                  }`}
+                />
+              </button>
+
+              {showPaymentMethodDropdown && (
+                <div className="absolute left-0 right-0 top-full mt-1.5 bg-white rounded-xl shadow-xl border border-slate-100 py-1.5 z-50 max-h-48 overflow-y-auto animate-in fade-in zoom-in-95">
+                  {(paymentMethods && paymentMethods.length > 0
+                    ? paymentMethods.map((pm) => pm.name)
+                    : PAYMENT_METHODS
+                  ).map((pmName) => (
+                    <button
+                      key={pmName}
+                      type="button"
+                      onClick={() => {
+                        setPaymentMethod(pmName);
+                        setShowPaymentMethodDropdown(false);
+                      }}
+                      className={`w-full text-left px-3 py-2 text-xs font-semibold transition flex items-center justify-between cursor-pointer ${
+                        paymentMethod === pmName
+                          ? 'bg-rose-50 text-rose-700 font-bold'
+                          : 'text-slate-700 hover:bg-slate-50'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <CreditCard className="w-3.5 h-3.5 text-slate-400" />
+                        <span>{pmName}</span>
+                      </div>
+                      {paymentMethod === pmName && (
+                        <CheckCircle2 className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* 7. Description / Remarks (2-column span) */}
+            <div className="col-span-2">
+              <label className="block text-[10px] sm:text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                7. Description / Remarks (Optional)
+              </label>
+              <textarea
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                rows={2}
+                placeholder="Add optional notes, item details, or invoice ref..."
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs sm:text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500"
+              />
+            </div>
+
+            {/* Optional Receipt Attachment (2-column span) */}
+            <div className="col-span-2">
+              <label className="block text-[10px] sm:text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                Receipt Attachment (Optional)
+              </label>
+              {receiptUrl ? (
+                <div className="relative rounded-xl overflow-hidden border border-slate-200 max-h-36 bg-slate-50 flex items-center justify-center group">
+                  <img src={receiptUrl} alt="Receipt preview" className="object-contain max-h-36 w-full" />
+                  <button
+                    type="button"
+                    onClick={() => setReceiptUrl(undefined)}
+                    className="absolute top-2 right-2 bg-rose-600 text-white p-1.5 rounded-lg shadow-md hover:bg-rose-700 transition cursor-pointer"
+                    title="Remove receipt"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              ) : (
+                <label className="flex flex-col items-center justify-center p-2.5 sm:p-3 border-2 border-dashed border-slate-200 rounded-xl cursor-pointer hover:bg-slate-50 transition text-slate-400 hover:text-slate-600">
+                  <Upload className="w-4 h-4 sm:w-5 sm:h-5 mb-0.5 text-slate-400" />
+                  <span className="text-[11px] sm:text-xs font-semibold">Upload receipt photo or invoice</span>
+                  <span className="text-[9px] sm:text-[10px] text-slate-400 mt-0.5">JPG, PNG up to 2MB</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleReceiptUpload}
+                    className="hidden"
+                  />
+                </label>
+              )}
+            </div>
           </div>
 
           {/* Submit and Cancel Buttons - Styled in Red */}
@@ -369,14 +495,14 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 px-4 py-2.5 rounded-2xl border border-slate-200 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition cursor-pointer"
+              className="flex-1 px-4 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition cursor-pointer"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={isSubmitting}
-              className="flex-1 px-4 py-2.5 rounded-2xl bg-rose-600 hover:bg-rose-700 text-white text-sm font-bold shadow-md shadow-rose-600/20 transition cursor-pointer disabled:opacity-70"
+              className="flex-1 px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-sm font-bold shadow-md shadow-rose-600/20 transition cursor-pointer disabled:opacity-70"
             >
               {isSubmitting ? 'Saving...' : expenseToEdit ? 'Save Changes' : 'Add Expense'}
             </button>

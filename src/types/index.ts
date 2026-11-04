@@ -8,6 +8,12 @@ export interface PaymentMethodItem {
   isDefault?: boolean;
 }
 
+export interface DepositTypeItem {
+  id: string;
+  name: string;
+  isDefault?: boolean;
+}
+
 export interface UserProfile {
   id: string;
   username: string;
@@ -27,6 +33,10 @@ export interface FamilySettings {
   familyName: string;
   currency: string;
   dateFormat: string;
+  appVersion?: string;
+  aboutDescription?: string;
+  releaseNotes?: string;
+  isSetupCompleted?: boolean;
   updatedAt?: string;
 }
 
@@ -68,6 +78,7 @@ export interface Deposit {
   familyId?: string;
   title: string;
   amount: number;
+  depositType?: string;
   depositedBy: string; // User ID
   depositedByName: string;
   date: string; // YYYY-MM-DD
@@ -77,6 +88,8 @@ export interface Deposit {
   createdAt: string;
   updatedAt: string;
   isPendingSync?: boolean;
+  isEdited?: boolean;
+  editHistory?: EditHistoryItem[];
 }
 
 export interface CategoryItem {

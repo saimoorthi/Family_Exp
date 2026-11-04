@@ -253,6 +253,46 @@
         }
       },
       "required": ["action", "details", "userId", "userName", "timestamp"]
+    },
+    "PaymentMethodItem": {
+      "title": "PaymentMethodItem",
+      "description": "Available payment methods for family transactions",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Payment method display name",
+          "maxLength": 50
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Creation timestamp",
+          "format": "date-time"
+        }
+      },
+      "required": ["name"]
+    },
+    "DepositTypeItem": {
+      "title": "DepositTypeItem",
+      "description": "Available deposit types for family fund contributions",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Deposit type display name",
+          "maxLength": 50
+        },
+        "isDefault": {
+          "type": "boolean",
+          "description": "Whether system default deposit type"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Creation timestamp",
+          "format": "date-time"
+        }
+      },
+      "required": ["name"]
     }
   },
   "firestore": {
@@ -275,6 +315,14 @@
     "/categories/{categoryId}": {
       "schema": "Category",
       "description": "Customizable expense categories"
+    },
+    "/paymentMethods/{methodId}": {
+      "schema": "PaymentMethodItem",
+      "description": "Configurable family payment methods"
+    },
+    "/depositTypes/{typeId}": {
+      "schema": "DepositTypeItem",
+      "description": "Configurable family deposit types"
     },
     "/activityLogs/{logId}": {
       "schema": "ActivityLog",

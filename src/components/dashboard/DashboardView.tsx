@@ -24,6 +24,7 @@ import {
   CartesianGrid,
 } from 'recharts';
 import { useData } from '../../context/DataContext';
+import { useAuth } from '../../context/AuthContext';
 import { CategoryIcon } from '../common/CategoryIcon';
 import { ActiveTab } from '../../types';
 
@@ -40,8 +41,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 }) => {
   const { expenses, deposits, categories, formatCurrency, formatDate, selectedMonth, setSelectedMonth } =
     useData();
+  const { userProfile } = useAuth();
+  const isAdmin = userProfile?.role === 'admin';
 
   const [showMonthDropdown, setShowMonthDropdown] = useState(false);
+  const [showYearDropdown, setShowYearDropdown] = useState(false);
 
   // Helper to format YYYY-MM into "Nov - 26"
   const formatMonthLabel = (monthKey: string) => {
@@ -304,7 +308,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       </div>
 
       {/* 2. Month Overview Card (Horizontal 3 KPIs + Month Dropdown) */}
-      <div className="bg-white rounded-3xl p-4 md:p-6 shadow-sm border border-slate-100 animate-in fade-in">
+      <div className="bg-white rounded-2xl p-4 md:p-6 shadow-sm border border-slate-100 animate-in fade-in">
         <div className="flex items-center justify-between mb-3 md:mb-4">
           <h2 className="text-sm md:text-lg font-bold text-slate-900 tracking-tight">
             Month Overview
@@ -313,8 +317,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           {/* Month Selector Dropdown */}
           <div className="relative">
             <button
-              onClick={() => setShowMonthDropdown(!showMonthDropdown)}
-              className="flex items-center gap-1.5 bg-indigo-50 hover:bg-indigo-100/80 text-indigo-900 font-bold px-3 py-1.5 md:px-3.5 md:py-1.5 rounded-full text-xs md:text-sm transition cursor-pointer border border-indigo-100 shadow-2xs"
+              onClick={() => {
+                setShowMonthDropdown(!showMonthDropdown);
+                setShowYearDropdown(false);
+              }}
+              className="flex items-center gap-1.5 bg-indigo-50 hover:bg-indigo-100/80 text-indigo-900 font-bold px-3 py-1.5 md:px-3.5 md:py-1.5 rounded-xl text-xs md:text-sm transition cursor-pointer border border-indigo-100 shadow-2xs"
             >
               <Calendar className="w-3.5 h-3.5 text-indigo-600" />
               <span>{formatMonthLabel(selectedMonth)}</span>
@@ -326,7 +333,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </button>
 
             {showMonthDropdown && (
-              <div className="absolute right-0 mt-2 w-52 bg-white rounded-2xl shadow-xl border border-slate-100 py-2 z-40 animate-in fade-in zoom-in-95 max-h-64 overflow-y-auto">
+              <div className="absolute right-0 mt-2 w-52 bg-white rounded-xl shadow-xl border border-slate-100 py-2 z-40 animate-in fade-in zoom-in-95 max-h-64 overflow-y-auto">
                 <div className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400 border-b border-slate-100 mb-1">
                   Select Month
                 </div>
@@ -415,26 +422,57 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       </div>
 
       {/* 3. Year Overview Card (Horizontal Layout) */}
-      <div className="bg-white rounded-3xl p-4 md:p-6 shadow-sm border border-slate-100 animate-in fade-in">
+      <div className="bg-white rounded-2xl p-4 md:p-6 shadow-sm border border-slate-100 animate-in fade-in">
         <div className="flex items-center justify-between mb-3 md:mb-4">
           <h2 className="text-sm md:text-lg font-bold text-slate-900 tracking-tight">
             Year Overview
           </h2>
 
-          {/* Year Dropdown only for available data */}
-          <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-2xl px-3 py-1.5 shadow-2xs">
-            <Calendar className="w-3.5 h-3.5 text-indigo-600" />
-            <select
-              value={selectedYear}
-              onChange={(e) => setSelectedYear(e.target.value)}
-              className="bg-transparent text-xs md:text-sm font-bold text-slate-800 focus:outline-none cursor-pointer"
+          {/* Year Dropdown matching Month Dropdown style */}
+          <div className="relative">
+            <button
+              onClick={() => {
+                setShowYearDropdown(!showYearDropdown);
+                setShowMonthDropdown(false);
+              }}
+              className="flex items-center gap-1.5 bg-indigo-50 hover:bg-indigo-100/80 text-indigo-900 font-bold px-3 py-1.5 md:px-3.5 md:py-1.5 rounded-xl text-xs md:text-sm transition cursor-pointer border border-indigo-100 shadow-2xs"
             >
-              {availableYears.map((yr) => (
-                <option key={yr} value={yr}>
-                  Year {yr}
-                </option>
-              ))}
-            </select>
+              <Calendar className="w-3.5 h-3.5 text-indigo-600" />
+              <span>Year {selectedYear}</span>
+              <ChevronDown
+                className={`w-3.5 h-3.5 text-indigo-600 transition-transform ${
+                  showYearDropdown ? 'rotate-180' : ''
+                }`}
+              />
+            </button>
+
+            {showYearDropdown && (
+              <div className="absolute right-0 mt-2 w-44 bg-white rounded-xl shadow-xl border border-slate-100 py-2 z-40 animate-in fade-in zoom-in-95 max-h-60 overflow-y-auto">
+                <div className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400 border-b border-slate-100 mb-1">
+                  Select Year
+                </div>
+                {availableYears.map((yr) => {
+                  const isSelected = yr === selectedYear;
+                  return (
+                    <button
+                      key={yr}
+                      onClick={() => {
+                        setSelectedYear(yr);
+                        setShowYearDropdown(false);
+                      }}
+                      className={`w-full text-left px-3 py-2 text-xs font-semibold transition flex items-center justify-between cursor-pointer ${
+                        isSelected
+                          ? 'bg-indigo-50 text-indigo-600 font-bold'
+                          : 'text-slate-700 hover:bg-slate-50'
+                      }`}
+                    >
+                      <span>Year {yr}</span>
+                      {isSelected && <CheckCircle2 className="w-3.5 h-3.5 text-indigo-600" />}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </div>
 
@@ -563,7 +601,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </div>
 
         {/* 5. Separate Card: Monthly Expenses Breakdown - Year (No Jan-Dec text) */}
-        <div className="lg:col-span-6 bg-white rounded-3xl p-4 md:p-6 shadow-sm border border-slate-100 flex flex-col justify-between">
+        <div className="lg:col-span-6 bg-white rounded-2xl p-4 md:p-6 shadow-sm border border-slate-100 flex flex-col justify-between">
           <div className="flex items-center justify-between mb-2">
             <h2 className="text-sm md:text-lg font-bold text-slate-900 tracking-tight">
               Monthly Expenses Breakdown - {selectedYear}
@@ -595,7 +633,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       </div>
 
       {/* 6. Recent Transactions Card (Maximum 10 entries) */}
-      <div className="bg-white rounded-3xl p-4 md:p-6 shadow-sm border border-slate-100">
+      <div className="bg-white rounded-2xl p-4 md:p-6 shadow-sm border border-slate-100">
         <div className="flex items-center justify-between mb-3 md:mb-4">
           <div className="flex items-center gap-2">
             <h2 className="text-sm md:text-lg font-bold text-slate-900 tracking-tight">
@@ -708,12 +746,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               >
                 + Add Expense
               </button>
-              <button
-                onClick={onOpenAddDeposit}
-                className="bg-emerald-600 text-white text-xs font-semibold px-3 py-2 rounded-xl shadow-xs hover:bg-emerald-700 transition cursor-pointer"
-              >
-                + Add Deposit
-              </button>
+              {isAdmin && (
+                <button
+                  onClick={onOpenAddDeposit}
+                  className="bg-emerald-600 text-white text-xs font-semibold px-3 py-2 rounded-xl shadow-xs hover:bg-emerald-700 transition cursor-pointer"
+                >
+                  + Add Deposit
+                </button>
+              )}
             </div>
           </div>
         )}
@@ -721,13 +761,15 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
       {/* Floating Action Buttons for Mobile */}
       <div className="md:hidden fixed bottom-20 right-4 flex flex-col gap-2.5 z-30">
-        <button
-          onClick={onOpenAddDeposit}
-          aria-label="Add Deposit"
-          className="w-11 h-11 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white flex items-center justify-center shadow-lg shadow-emerald-600/30 active:scale-95 transition cursor-pointer"
-        >
-          <Wallet className="w-5 h-5" />
-        </button>
+        {isAdmin && (
+          <button
+            onClick={onOpenAddDeposit}
+            aria-label="Add Deposit"
+            className="w-11 h-11 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white flex items-center justify-center shadow-lg shadow-emerald-600/30 active:scale-95 transition cursor-pointer"
+          >
+            <Wallet className="w-5 h-5" />
+          </button>
+        )}
         <button
           onClick={onOpenAddExpense}
           aria-label="Add Expense"
