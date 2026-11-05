@@ -227,7 +227,7 @@ export const LoginView: React.FC = () => {
               <span>256-bit encrypted • Version {appVersion}</span>
             </div>
             <p className="text-[11px] text-slate-400 font-medium mt-1">
-              Made by KK for Tharkuri
+              Developed by KK for Tharkuri
             </p>
           </div>
         </div>
