@@ -34,8 +34,7 @@ function MainAppContent() {
     }
   }, [userProfile?.id]);
 
-  // App Lock State (PIN / Biometric) - scoped per user
-  // App Lock State (PIN / Biometric) - scoped per user, synchronously checked to prevent dashboard flash
+  // App Lock State (Security PIN) - scoped per user, synchronously checked to prevent dashboard flash
   const [isAppLocked, setIsAppLocked] = useState<boolean>(() => {
     try {
       const userRaw = localStorage.getItem('family_expense_user_profile_v2');

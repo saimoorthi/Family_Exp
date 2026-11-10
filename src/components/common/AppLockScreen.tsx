@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Fingerprint, Delete, Lock, LogOut } from 'lucide-react';
+import { Delete, Lock, LogOut } from 'lucide-react';
 import { useAuth, hashPassword } from '../../context/AuthContext';
-import { registerBiometricCredential, verifyBiometricCredential, isBiometricSupported } from '../../lib/biometrics';
 
 interface AppLockScreenProps {
   onUnlock: () => void;
@@ -12,11 +11,10 @@ export const AppLockScreen: React.FC<AppLockScreenProps> = ({ onUnlock }) => {
   const [enteredPin, setEnteredPin] = useState('');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isShaking, setIsShaking] = useState(false);
-  const [biometricAvailable, setBiometricAvailable] = useState(false);
   const [lockoutRemaining, setLockoutRemaining] = useState<number>(0);
   const [failedAttempts, setFailedAttempts] = useState<number>(0);
 
-  // Check lockout status and biometric availability on mount
+  // Check lockout status on mount
   useEffect(() => {
     if (!userProfile?.id) return;
     const lockoutKey = `family_app_lock_lockout_${userProfile.id}`;
@@ -28,20 +26,6 @@ export const AppLockScreen: React.FC<AppLockScreenProps> = ({ onUnlock }) => {
       } else {
         localStorage.removeItem(lockoutKey);
       }
-    }
-
-    const isBioEnabled = localStorage.getItem(`family_app_lock_biometric_${userProfile.id}`) === 'true';
-    if (isBioEnabled) {
-      isBiometricSupported()
-        .then((available) => {
-          setBiometricAvailable(available);
-          const credId = localStorage.getItem(`family_app_lock_cred_id_${userProfile.id}`);
-          // Only auto-trigger if credential is already enrolled on this device
-          if (available && credId) {
-            triggerBiometricUnlock();
-          }
-        })
-        .catch(() => setBiometricAvailable(false));
     }
   }, [userProfile?.id]);
 
@@ -63,47 +47,6 @@ export const AppLockScreen: React.FC<AppLockScreenProps> = ({ onUnlock }) => {
     }, 1000);
     return () => clearInterval(interval);
   }, [lockoutRemaining, userProfile?.id]);
-
-  const triggerBiometricUnlock = async () => {
-    if (lockoutRemaining > 0 || !userProfile?.id) return;
-    try {
-      setErrorMsg(null);
-      const credKey = `family_app_lock_cred_id_${userProfile.id}`;
-      const savedCredId = localStorage.getItem(credKey);
-
-      if (!savedCredId) {
-        // No passkey registered yet on this device - register fingerprint now
-        const newCredId = await registerBiometricCredential(
-          userProfile.id,
-          userProfile.displayName || 'Family Member'
-        );
-        localStorage.setItem(credKey, newCredId);
-        localStorage.setItem(`family_app_lock_last_unlocked_${userProfile.id}`, Date.now().toString());
-        localStorage.removeItem(`family_app_lock_failed_attempts_${userProfile.id}`);
-        onUnlock();
-        return;
-      }
-
-      // Verify enrolled biometric passkey
-      const success = await verifyBiometricCredential(savedCredId);
-      if (success) {
-        localStorage.setItem(`family_app_lock_last_unlocked_${userProfile.id}`, Date.now().toString());
-        localStorage.removeItem(`family_app_lock_failed_attempts_${userProfile.id}`);
-        onUnlock();
-      } else {
-        setErrorMsg('Biometric verification failed. Please enter your PIN.');
-      }
-    } catch (err: unknown) {
-      const errMsg = err instanceof Error ? err.message : '';
-      if (errMsg.toLowerCase().includes('cancel') || errMsg.toLowerCase().includes('abort')) {
-        setErrorMsg('Biometric cancelled. Please enter your PIN.');
-      } else if (errMsg.includes('not supported') || errMsg.includes('NotAllowedError')) {
-        setErrorMsg('Biometric not available in this browser. Enter PIN.');
-      } else {
-        setErrorMsg('Biometric verification failed. Please enter your PIN.');
-      }
-    }
-  };
 
   const handleKeyPress = (num: string) => {
     if (lockoutRemaining > 0) return;
@@ -208,10 +151,10 @@ export const AppLockScreen: React.FC<AppLockScreenProps> = ({ onUnlock }) => {
           Enter 4-Digit Security PIN
         </span>
 
-        {/* 4 Liquid Droplet Dots */}
+        {/* Styled 4-Dot Security PIN Indicators */}
         <div
-          className={`flex items-center gap-4 py-2 transition-transform ${
-            isShaking ? 'animate-bounce text-rose-400' : ''
+          className={`flex items-center gap-4 px-6 py-3.5 rounded-full bg-white/[0.05] border border-white/10 backdrop-blur-xl shadow-inner transition-transform ${
+            isShaking ? 'animate-bounce' : ''
           }`}
         >
           {[0, 1, 2, 3].map((index) => {
@@ -219,12 +162,22 @@ export const AppLockScreen: React.FC<AppLockScreenProps> = ({ onUnlock }) => {
             return (
               <div
                 key={index}
-                className={`w-4 h-4 rounded-full transition-all duration-200 ${
-                  isFilled
-                    ? 'bg-gradient-to-tr from-cyan-300 via-indigo-200 to-white shadow-lg shadow-cyan-400/60 ring-2 ring-cyan-300/80 scale-110'
-                    : 'bg-white/10 border border-white/25 backdrop-blur-md'
+                className={`w-5 h-5 rounded-full transition-all duration-300 flex items-center justify-center ${
+                  isShaking
+                    ? 'bg-rose-500/40 border-2 border-rose-400 shadow-[0_0_14px_rgba(244,63,94,0.7)] scale-110'
+                    : isFilled
+                    ? 'bg-gradient-to-tr from-emerald-500 via-teal-400 to-cyan-300 border-2 border-emerald-300 shadow-[0_0_16px_rgba(52,211,153,0.75)] scale-115'
+                    : 'bg-indigo-950/40 border-2 border-indigo-300/25 scale-100'
                 }`}
-              />
+              >
+                {/* Center Core Jewel */}
+                {isFilled && !isShaking && (
+                  <div className="w-1.5 h-1.5 rounded-full bg-white shadow-xs animate-in zoom-in-95 duration-150" />
+                )}
+                {!isFilled && !isShaking && (
+                  <div className="w-1 h-1 rounded-full bg-indigo-300/30" />
+                )}
+              </div>
             );
           })}
         </div>
@@ -249,18 +202,8 @@ export const AppLockScreen: React.FC<AppLockScreenProps> = ({ onUnlock }) => {
             </button>
           ))}
 
-          {/* Biometric Button or Blank */}
-          {biometricAvailable ? (
-            <button
-              onClick={triggerBiometricUnlock}
-              title="Biometric Fingerprint / Face Unlock"
-              className="h-16 rounded-2xl bg-cyan-500/20 hover:bg-cyan-500/30 active:scale-95 border border-cyan-400/30 text-cyan-200 flex items-center justify-center transition-all cursor-pointer backdrop-blur-xl shadow-lg shadow-cyan-950/40"
-            >
-              <Fingerprint className="w-7 h-7 text-cyan-300" />
-            </button>
-          ) : (
-            <div className="h-16" />
-          )}
+          {/* Symmetrical Blank Spacer */}
+          <div className="h-16" />
 
           {/* 0 digit */}
           <button

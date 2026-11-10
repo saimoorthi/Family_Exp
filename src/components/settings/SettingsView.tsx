@@ -25,7 +25,6 @@ import {
   AlertTriangle,
   KeyRound,
   Sparkles,
-  Fingerprint,
   Search,
   ShieldCheck,
   CreditCard,
@@ -36,7 +35,6 @@ import {
 } from 'lucide-react';
 import { useAuth, hashPassword } from '../../context/AuthContext';
 import { useData } from '../../context/DataContext';
-import { registerBiometricCredential } from '../../lib/biometrics';
 import { UserProfile, UserRole, CategoryItem, PaymentMethodItem, DepositTypeItem, ActiveTab } from '../../types';
 import { SUPPORTED_CURRENCIES } from '../../lib/constants';
 import { CategoryIcon, searchLucideIcons, ICON_REGISTRY, SearchedIconItem } from '../common/CategoryIcon';
@@ -169,15 +167,10 @@ export const SettingsView: React.FC = () => {
   const [profileSavedMsg, setProfileSavedMsg] = useState<string | null>(null);
   const [profileErrorMsg, setProfileErrorMsg] = useState<string | null>(null);
 
-  // App Lock & Biometrics State - scoped per userProfile.id
+  // App Security PIN State - scoped per userProfile.id
   const [appLockEnabled, setAppLockEnabled] = useState<boolean>(() => {
     return userProfile?.id
       ? localStorage.getItem(`family_app_lock_enabled_${userProfile.id}`) === 'true'
-      : false;
-  });
-  const [appLockBiometric, setAppLockBiometric] = useState<boolean>(() => {
-    return userProfile?.id
-      ? localStorage.getItem(`family_app_lock_biometric_${userProfile.id}`) === 'true'
       : false;
   });
   const [pinInput, setPinInput] = useState('');
@@ -189,9 +182,6 @@ export const SettingsView: React.FC = () => {
     if (userProfile?.id) {
       setAppLockEnabled(
         localStorage.getItem(`family_app_lock_enabled_${userProfile.id}`) === 'true'
-      );
-      setAppLockBiometric(
-        localStorage.getItem(`family_app_lock_biometric_${userProfile.id}`) === 'true'
       );
     }
   }, [userProfile?.id]);
@@ -520,40 +510,6 @@ export const SettingsView: React.FC = () => {
     setIsEditingAbout(false);
   };
 
-  // Biometric toggle handler: trigger enrollment on enable
-  const handleBiometricToggle = async (enabled: boolean) => {
-    if (!enabled) {
-      setAppLockBiometric(false);
-      if (userProfile?.id) {
-        localStorage.removeItem(`family_app_lock_cred_id_${userProfile.id}`);
-      }
-      return;
-    }
-
-    try {
-      setAppLockFeedback('Touch your fingerprint sensor or scan face to register passkey...');
-      const credId = await registerBiometricCredential(
-        userProfile?.id || 'user',
-        userProfile?.displayName || 'Family Member'
-      );
-      if (userProfile?.id) {
-        localStorage.setItem(`family_app_lock_cred_id_${userProfile.id}`, credId);
-      }
-      setAppLockBiometric(true);
-      setAppLockFeedback('Biometric passkey enrolled successfully!');
-      setTimeout(() => setAppLockFeedback(null), 2500);
-    } catch (err: unknown) {
-      const errMsg = err instanceof Error ? err.message : '';
-      setAppLockBiometric(false);
-      if (errMsg.toLowerCase().includes('cancel') || errMsg.toLowerCase().includes('abort')) {
-        setAppLockFeedback('Biometric enrollment cancelled.');
-      } else {
-        setAppLockFeedback('Biometrics not available or not supported in this browser.');
-      }
-      setTimeout(() => setAppLockFeedback(null), 3500);
-    }
-  };
-
   // Save App Lock PIN & Settings - scoped to userProfile.id
   const handleSaveAppLock = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -562,7 +518,6 @@ export const SettingsView: React.FC = () => {
 
     const lockKey = `family_app_lock_enabled_${userProfile.id}`;
     const pinKey = `family_app_lock_pin_${userProfile.id}`;
-    const bioKey = `family_app_lock_biometric_${userProfile.id}`;
 
     if (appLockEnabled) {
       // Must provide and confirm 4-digit PIN
@@ -577,10 +532,11 @@ export const SettingsView: React.FC = () => {
       localStorage.setItem(lockKey, 'true');
       const hashedPin = await hashPassword(pinInput);
       localStorage.setItem(pinKey, hashedPin);
-      localStorage.setItem(bioKey, appLockBiometric ? 'true' : 'false');
 
-      // Clear legacy device-wide keys
+      // Clean up any legacy biometric keys
       try {
+        localStorage.removeItem(`family_app_lock_biometric_${userProfile.id}`);
+        localStorage.removeItem(`family_app_lock_cred_id_${userProfile.id}`);
         localStorage.removeItem('family_app_lock_enabled');
         localStorage.removeItem('family_app_lock_pin');
         localStorage.removeItem('family_app_lock_biometric');
@@ -588,7 +544,7 @@ export const SettingsView: React.FC = () => {
         // ignore
       }
 
-      setAppLockFeedback('App Lock & PIN activated successfully for your account!');
+      setAppLockFeedback('App Security PIN activated successfully!');
       setTimeout(() => {
         setAppLockFeedback(null);
         setActiveModal(null);
@@ -599,10 +555,10 @@ export const SettingsView: React.FC = () => {
       // Disabled for this user
       localStorage.setItem(lockKey, 'false');
       localStorage.removeItem(pinKey);
-      localStorage.setItem(bioKey, 'false');
-      localStorage.removeItem(`family_app_lock_cred_id_${userProfile.id}`);
 
       try {
+        localStorage.removeItem(`family_app_lock_biometric_${userProfile.id}`);
+        localStorage.removeItem(`family_app_lock_cred_id_${userProfile.id}`);
         localStorage.removeItem('family_app_lock_enabled');
         localStorage.removeItem('family_app_lock_pin');
         localStorage.removeItem('family_app_lock_biometric');
@@ -610,7 +566,7 @@ export const SettingsView: React.FC = () => {
         // ignore
       }
 
-      setAppLockFeedback('App Lock disabled for your account.');
+      setAppLockFeedback('App PIN disabled for your account.');
       setTimeout(() => {
         setAppLockFeedback(null);
         setActiveModal(null);
@@ -691,11 +647,7 @@ export const SettingsView: React.FC = () => {
               const currentEnabled = userProfile?.id
                 ? localStorage.getItem(`family_app_lock_enabled_${userProfile.id}`) === 'true'
                 : false;
-              const currentBio = userProfile?.id
-                ? localStorage.getItem(`family_app_lock_biometric_${userProfile.id}`) === 'true'
-                : false;
               setAppLockEnabled(currentEnabled);
-              setAppLockBiometric(currentBio);
               setPinInput('');
               setPinConfirmInput('');
               setAppLockFeedback(null);
@@ -706,11 +658,11 @@ export const SettingsView: React.FC = () => {
             <div className="flex items-center gap-3 text-slate-700">
               <Lock className="w-4 h-4 text-slate-400" />
               <div>
-                <span className="text-xs md:text-sm font-semibold block">App Lock (PIN & Biometrics)</span>
+                <span className="text-xs md:text-sm font-semibold block">App Lock (4-Digit PIN)</span>
                 <span className="text-[11px] text-slate-400">
                   {userProfile?.id &&
                   localStorage.getItem(`family_app_lock_enabled_${userProfile.id}`) === 'true'
-                    ? 'Active (4-Digit PIN / Biometric)'
+                    ? 'Active (4-Digit PIN Enabled)'
                     : 'Disabled (Tap to setup)'}
                 </span>
               </div>
@@ -2701,7 +2653,7 @@ export const SettingsView: React.FC = () => {
         </div>
       )}
 
-      {/* MODAL 8: App Lock PIN & Biometrics */}
+      {/* MODAL 8: App Security PIN */}
       {activeModal === 'applock' && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in">
           <div className="w-full max-w-sm rounded-2xl bg-white p-5 sm:p-6 shadow-2xl relative">
@@ -2721,10 +2673,10 @@ export const SettingsView: React.FC = () => {
               <div className="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
                 <ShieldCheck className="w-5 h-5" />
               </div>
-              <h3 className="text-base font-bold text-slate-900">App Lock & Biometrics</h3>
+              <h3 className="text-base font-bold text-slate-900">App Security PIN</h3>
             </div>
             <p className="text-xs text-slate-400 mb-4">
-              Secure your ledger with a 4-digit PIN and device fingerprint or face unlock.
+              Protect your family expense tracker with a private 4-digit PIN.
             </p>
 
             {appLockFeedback && (
@@ -2790,26 +2742,6 @@ export const SettingsView: React.FC = () => {
                       required={appLockEnabled}
                     />
                   </div>
-
-                  {/* Biometric Toggle */}
-                  <div className="flex items-center justify-between p-3 rounded-2xl bg-indigo-50/50 border border-indigo-100">
-                    <div className="flex items-center gap-2.5">
-                      <Fingerprint className="w-4 h-4 text-indigo-600" />
-                      <div>
-                        <span className="text-xs font-bold text-indigo-950 block">Biometric Unlock</span>
-                        <span className="text-[10px] text-indigo-700/80">Fingerprint or Face unlock</span>
-                      </div>
-                    </div>
-                    <label className="relative inline-flex items-center cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={appLockBiometric}
-                        onChange={(e) => handleBiometricToggle(e.target.checked)}
-                        className="sr-only peer"
-                      />
-                      <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600"></div>
-                    </label>
-                  </div>
                 </div>
               )}
 
@@ -2822,10 +2754,10 @@ export const SettingsView: React.FC = () => {
                       localStorage.removeItem('family_app_lock_pin');
                       localStorage.removeItem('family_app_lock_biometric');
                       if (userProfile?.id) {
+                        localStorage.removeItem(`family_app_lock_biometric_${userProfile.id}`);
                         localStorage.removeItem(`family_app_lock_cred_id_${userProfile.id}`);
                       }
                       setAppLockEnabled(false);
-                      setAppLockBiometric(false);
                       setPinInput('');
                       setPinConfirmInput('');
                       setAppLockFeedback('App lock has been disabled.');
