@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Fingerprint, Delete, Lock, LogOut } from 'lucide-react';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth, hashPassword } from '../../context/AuthContext';
 
 interface AppLockScreenProps {
   onUnlock: () => void;
@@ -12,18 +12,29 @@ export const AppLockScreen: React.FC<AppLockScreenProps> = ({ onUnlock }) => {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isShaking, setIsShaking] = useState(false);
   const [biometricAvailable, setBiometricAvailable] = useState(false);
+  const [lockoutRemaining, setLockoutRemaining] = useState<number>(0);
+  const [failedAttempts, setFailedAttempts] = useState<number>(0);
 
-  // Check if biometric is supported & enabled for this specific user
+  // Check lockout status and biometric availability on mount
   useEffect(() => {
-    const isBioEnabled = userProfile?.id
-      ? localStorage.getItem(`family_app_lock_biometric_${userProfile.id}`) === 'true'
-      : false;
+    if (!userProfile?.id) return;
+    const lockoutKey = `family_app_lock_lockout_${userProfile.id}`;
+    const storedLockout = localStorage.getItem(lockoutKey);
+    if (storedLockout) {
+      const remainingMs = parseInt(storedLockout, 10) - Date.now();
+      if (remainingMs > 0) {
+        setLockoutRemaining(Math.ceil(remainingMs / 1000));
+      } else {
+        localStorage.removeItem(lockoutKey);
+      }
+    }
+
+    const isBioEnabled = localStorage.getItem(`family_app_lock_biometric_${userProfile.id}`) === 'true';
     if (isBioEnabled && window.PublicKeyCredential) {
       window.PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable?.()
         .then((available) => {
           setBiometricAvailable(available);
           if (available) {
-            // Automatically prompt biometric unlock on open
             triggerBiometricUnlock();
           }
         })
@@ -31,24 +42,66 @@ export const AppLockScreen: React.FC<AppLockScreenProps> = ({ onUnlock }) => {
     }
   }, [userProfile?.id]);
 
+  // Lockout countdown timer
+  useEffect(() => {
+    if (lockoutRemaining <= 0) return;
+    const interval = setInterval(() => {
+      setLockoutRemaining((prev) => {
+        if (prev <= 1) {
+          if (userProfile?.id) {
+            localStorage.removeItem(`family_app_lock_lockout_${userProfile.id}`);
+          }
+          setFailedAttempts(0);
+          setErrorMsg(null);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [lockoutRemaining, userProfile?.id]);
+
   const triggerBiometricUnlock = async () => {
+    if (lockoutRemaining > 0) return;
     try {
       setErrorMsg(null);
-      // If WebAuthn is available, perform challenge or verify device authentication
-      if (window.PublicKeyCredential) {
-        // Authenticate with platform authenticator (fingerprint / face ID / PIN)
+      if (window.PublicKeyCredential && navigator.credentials) {
         const challenge = new Uint8Array(32);
         window.crypto.getRandomValues(challenge);
 
-        // Simple biometric check flow
-        onUnlock();
+        const assertion = await navigator.credentials.get({
+          publicKey: {
+            challenge,
+            timeout: 60000,
+            userVerification: 'required',
+            rpId: window.location.hostname || undefined,
+          },
+        });
+
+        if (assertion) {
+          if (userProfile?.id) {
+            localStorage.setItem(`family_app_lock_last_unlocked_${userProfile.id}`, Date.now().toString());
+            localStorage.removeItem(`family_app_lock_failed_attempts_${userProfile.id}`);
+          }
+          onUnlock();
+        } else {
+          setErrorMsg('Biometric verification failed. Please enter your PIN.');
+        }
+      } else {
+        setErrorMsg('Biometrics not supported on this device.');
       }
-    } catch {
-      setErrorMsg('Biometric authentication failed. Please enter your PIN.');
+    } catch (err: unknown) {
+      const errMsg = err instanceof Error ? err.message : '';
+      if (errMsg.toLowerCase().includes('cancel') || errMsg.toLowerCase().includes('abort')) {
+        setErrorMsg('Biometric verification cancelled.');
+      } else {
+        setErrorMsg('Biometric verification failed. Please enter your PIN.');
+      }
     }
   };
 
   const handleKeyPress = (num: string) => {
+    if (lockoutRemaining > 0) return;
     if (enteredPin.length >= 4) return;
     const nextPin = enteredPin + num;
     setEnteredPin(nextPin);
@@ -60,28 +113,49 @@ export const AppLockScreen: React.FC<AppLockScreenProps> = ({ onUnlock }) => {
   };
 
   const handleDelete = () => {
+    if (lockoutRemaining > 0) return;
     setEnteredPin((prev) => prev.slice(0, -1));
     setErrorMsg(null);
   };
 
-  const validatePin = (pin: string) => {
+  const validatePin = async (pin: string) => {
     if (!userProfile?.id) {
       onUnlock();
       return;
     }
-    const savedPin = localStorage.getItem(`family_app_lock_pin_${userProfile.id}`);
+    const pinKey = `family_app_lock_pin_${userProfile.id}`;
+    const savedPin = localStorage.getItem(pinKey);
     if (!savedPin) {
       // User has no PIN configured on this device
       onUnlock();
       return;
     }
 
-    if (pin === savedPin) {
+    const hashedInput = await hashPassword(pin);
+    // Allow either hashed match or legacy plain text match
+    if (pin === savedPin || hashedInput === savedPin) {
+      // Upgrade plain text PIN to hash if needed
+      if (savedPin === pin) {
+        localStorage.setItem(pinKey, hashedInput);
+      }
       localStorage.setItem(`family_app_lock_last_unlocked_${userProfile.id}`, Date.now().toString());
+      localStorage.removeItem(`family_app_lock_failed_attempts_${userProfile.id}`);
+      setFailedAttempts(0);
       onUnlock();
     } else {
       setIsShaking(true);
-      setErrorMsg('Incorrect PIN. Please try again.');
+      const newAttempts = failedAttempts + 1;
+      setFailedAttempts(newAttempts);
+
+      if (newAttempts >= 5) {
+        const lockoutTimeMs = Date.now() + 30000;
+        localStorage.setItem(`family_app_lock_lockout_${userProfile.id}`, lockoutTimeMs.toString());
+        setLockoutRemaining(30);
+        setErrorMsg('Too many failed attempts. Locked for 30 seconds.');
+      } else {
+        setErrorMsg(`Incorrect PIN. ${5 - newAttempts} attempt(s) remaining.`);
+      }
+
       setTimeout(() => {
         setEnteredPin('');
         setIsShaking(false);

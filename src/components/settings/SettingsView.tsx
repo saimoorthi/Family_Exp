@@ -34,7 +34,7 @@ import {
   Sliders,
   ArrowLeft,
 } from 'lucide-react';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth, hashPassword } from '../../context/AuthContext';
 import { useData } from '../../context/DataContext';
 import { UserProfile, UserRole, CategoryItem, PaymentMethodItem, DepositTypeItem, ActiveTab } from '../../types';
 import { SUPPORTED_CURRENCIES } from '../../lib/constants';
@@ -520,7 +520,7 @@ export const SettingsView: React.FC = () => {
   };
 
   // Save App Lock PIN & Settings - scoped to userProfile.id
-  const handleSaveAppLock = (e: React.FormEvent) => {
+  const handleSaveAppLock = async (e: React.FormEvent) => {
     e.preventDefault();
     setAppLockFeedback(null);
     if (!userProfile?.id) return;
@@ -540,7 +540,8 @@ export const SettingsView: React.FC = () => {
         return;
       }
       localStorage.setItem(lockKey, 'true');
-      localStorage.setItem(pinKey, pinInput);
+      const hashedPin = await hashPassword(pinInput);
+      localStorage.setItem(pinKey, hashedPin);
       localStorage.setItem(bioKey, appLockBiometric ? 'true' : 'false');
 
       // Clear legacy device-wide keys

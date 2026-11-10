@@ -7,10 +7,21 @@ service cloud.firestore {
       return id is string && id.size() > 0 && id.size() <= 128;
     }
 
-    // Family Member Accounts
+    function isValidRole(role) {
+      return role == 'admin' || role == 'member';
+    }
+
+    // Family Member Accounts - validated fields and roles
     match /users/{userId} {
       allow get, list: if true;
-      allow create, update, delete: if isValidId(userId);
+      allow create: if isValidId(userId) 
+        && request.resource.data.role is string 
+        && isValidRole(request.resource.data.role)
+        && request.resource.data.username is string;
+      allow update: if isValidId(userId) 
+        && request.resource.data.role is string 
+        && isValidRole(request.resource.data.role);
+      allow delete: if isValidId(userId);
     }
 
     // Family-wide General Settings
@@ -19,16 +30,22 @@ service cloud.firestore {
       allow write: if isValidId(settingId);
     }
 
-    // Family Expenses
+    // Family Expenses - numeric amount validation
     match /expenses/{expenseId} {
       allow get, list: if true;
-      allow create, update, delete: if isValidId(expenseId);
+      allow create, update: if isValidId(expenseId) 
+        && request.resource.data.amount is number 
+        && request.resource.data.amount >= 0;
+      allow delete: if isValidId(expenseId);
     }
 
-    // Family Deposits
+    // Family Deposits - numeric amount validation
     match /deposits/{depositId} {
       allow get, list: if true;
-      allow create, update, delete: if isValidId(depositId);
+      allow create, update: if isValidId(depositId) 
+        && request.resource.data.amount is number 
+        && request.resource.data.amount >= 0;
+      allow delete: if isValidId(depositId);
     }
 
     // Expense Categories
@@ -49,7 +66,7 @@ service cloud.firestore {
       allow create, update, delete: if isValidId(typeId);
     }
 
-    // Activity Logs
+    // Activity Logs - immutable audit trail
     match /activityLogs/{logId} {
       allow get, list: if true;
       allow create: if isValidId(logId);

@@ -42,7 +42,16 @@ export const DepositModal: React.FC<DepositModalProps> = ({
   const availableDepositTypes =
     depositTypes && depositTypes.length > 0 ? depositTypes.map((dt) => dt.name) : DEPOSIT_TYPES;
 
-  const [date, setDate] = useState(() => new Date().toISOString().split('T')[0]);
+  // Helper for current local date in YYYY-MM-DD (avoids UTC timezone shift in India UTC+5:30)
+  const getTodayLocalDate = () => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const [date, setDate] = useState(() => getTodayLocalDate());
   const [amount, setAmount] = useState('');
   const [title, setTitle] = useState('');
   const [depositType, setDepositType] = useState('Contribution');
@@ -59,7 +68,11 @@ export const DepositModal: React.FC<DepositModalProps> = ({
   const [showDepositedByDropdown, setShowDepositedByDropdown] = useState(false);
   const [showPaymentMethodDropdown, setShowPaymentMethodDropdown] = useState(false);
 
+  // Reset or initialize form ONLY when modal opens or depositToEdit changes
+  // (Excludes members/userProfile so background updates do NOT wipe form inputs while user is typing!)
   useEffect(() => {
+    if (!isOpen) return;
+
     if (depositToEdit) {
       setDate(depositToEdit.date);
       setAmount(String(depositToEdit.amount));
@@ -69,7 +82,7 @@ export const DepositModal: React.FC<DepositModalProps> = ({
       setPaymentMethod(depositToEdit.paymentMethod);
       setDescription(depositToEdit.description || '');
     } else {
-      setDate(new Date().toISOString().split('T')[0]);
+      setDate(getTodayLocalDate());
       setAmount('');
       setTitle('Monthly Fund Contribution');
       setDepositType('Contribution');
@@ -81,7 +94,7 @@ export const DepositModal: React.FC<DepositModalProps> = ({
     setShowDepositedByDropdown(false);
     setShowPaymentMethodDropdown(false);
     setError(null);
-  }, [depositToEdit, isOpen, members, userProfile]);
+  }, [isOpen, depositToEdit]);
 
   if (!isOpen) return null;
 

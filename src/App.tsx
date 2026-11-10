@@ -35,12 +35,16 @@ function MainAppContent() {
   }, [userProfile?.id]);
 
   // App Lock State (PIN / Biometric) - scoped per user
+  // App Lock State (PIN / Biometric) - scoped per user, synchronously checked to prevent dashboard flash
   const [isAppLocked, setIsAppLocked] = useState<boolean>(() => {
-    // Clear legacy un-scoped device keys so other members are not accidentally locked
     try {
-      localStorage.removeItem('family_app_lock_enabled');
-      localStorage.removeItem('family_app_lock_pin');
-      localStorage.removeItem('family_app_lock_biometric');
+      const userRaw = localStorage.getItem('family_expense_user_profile_v2');
+      if (userRaw) {
+        const user = JSON.parse(userRaw);
+        if (user?.id) {
+          return localStorage.getItem(`family_app_lock_enabled_${user.id}`) === 'true';
+        }
+      }
     } catch {
       // ignore
     }
@@ -81,13 +85,6 @@ function MainAppContent() {
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, [userProfile?.id]);
-
-  // Seed sample initial data on first admin login if database is blank
-  useEffect(() => {
-    if (userProfile) {
-      checkAndSeedInitialData(userProfile.id, userProfile.displayName);
-    }
-  }, [userProfile]);
 
   // Loading state
   if (isLoading) {

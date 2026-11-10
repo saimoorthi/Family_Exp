@@ -64,7 +64,7 @@ export interface Expense {
   paidByName: string;
   paymentMethod: PaymentMethod;
   description?: string;
-  receiptUrl?: string;
+  receiptUrl?: string | null;
   createdBy: string;
   createdAt: string;
   updatedAt: string;

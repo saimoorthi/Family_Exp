@@ -34,6 +34,7 @@ import {
 } from '../lib/constants';
 import {
   getPendingQueue,
+  savePendingQueue,
   enqueuePendingItem,
   dequeuePendingItem,
   getCachedExpenses,
@@ -41,7 +42,7 @@ import {
   getCachedDeposits,
   saveCachedDeposits,
 } from '../lib/offlineSync';
-import { useAuth } from './AuthContext';
+import { useAuth, hashPassword } from './AuthContext';
 import { formatDate } from '../lib/dateUtils';
 
 interface ToastMessage {
@@ -160,7 +161,24 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     typeof navigator !== 'undefined' && !navigator.onLine ? 'offline' : 'synced'
   );
   const [pendingCount, setPendingCount] = useState<number>(getPendingQueue().length);
-  const [lastSyncTime, setLastSyncTime] = useState<Date>(() => new Date());
+  const [lastSyncTime, setLastSyncTime] = useState<Date>(() => {
+    try {
+      const saved = localStorage.getItem('family_expense_last_sync_timestamp');
+      if (saved) {
+        const parsed = new Date(saved);
+        if (!isNaN(parsed.getTime())) return parsed;
+      }
+    } catch {}
+    return new Date();
+  });
+
+  const markSyncSuccess = useCallback(() => {
+    const now = new Date();
+    setLastSyncTime(now);
+    try {
+      localStorage.setItem('family_expense_last_sync_timestamp', now.toISOString());
+    } catch {}
+  }, []);
 
   const lastSyncFormatted = useMemo(() => {
     const day = String(lastSyncTime.getDate()).padStart(2, '0');
@@ -263,12 +281,15 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const remaining = getPendingQueue().length;
     setPendingCount(remaining);
     setSyncStatus(hasError ? 'error' : 'synced');
-  }, []);
+    if (!hasError) {
+      markSyncSuccess();
+    }
+  }, [markSyncSuccess]);
 
   // Manual sync trigger
   const manualSync = async () => {
     await processQueue();
-    setLastSyncTime(new Date());
+    markSyncSuccess();
   };
 
   // Online / Offline listeners
@@ -1055,7 +1076,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         payload.displayName = updates.displayName.trim();
       }
       if (updates.password !== undefined && updates.password.trim()) {
-        payload.password = updates.password.trim();
+        payload.password = await hashPassword(updates.password.trim());
       }
       if (updates.role) {
         payload.role = updates.role;
@@ -1105,8 +1126,11 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setDeposits([]);
       saveCachedDeposits([]);
 
-      // 3. Clear local offline queue
-      localStorage.removeItem('family_expense_queue_v1');
+      // 3. Clear all local offline pending queue items and cached data
+      savePendingQueue([]);
+      localStorage.removeItem('family_expense_pending_queue_v1');
+      localStorage.removeItem('family_expense_cached_expenses_v1');
+      localStorage.removeItem('family_expense_cached_deposits_v1');
       setPendingCount(0);
 
       // 4. Mark setup permanently completed in device storage and in Firestore familySettings

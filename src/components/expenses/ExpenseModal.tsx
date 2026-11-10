@@ -63,7 +63,16 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
     return sortedCategories.slice(0, 4);
   }, [expenses, categories, sortedCategories]);
 
-  const [date, setDate] = useState(() => new Date().toISOString().split('T')[0]);
+  // Helper for current local date in YYYY-MM-DD (avoids UTC timezone shift in India UTC+5:30)
+  const getTodayLocalDate = () => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const [date, setDate] = useState(() => getTodayLocalDate());
   const [amount, setAmount] = useState('');
   const [title, setTitle] = useState('');
   const [category, setCategory] = useState(expenseToEdit?.category || '');
@@ -79,7 +88,11 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
   const [showPaidByDropdown, setShowPaidByDropdown] = useState(false);
   const [showPaymentMethodDropdown, setShowPaymentMethodDropdown] = useState(false);
 
+  // Reset or initialize form ONLY when modal opens or expenseToEdit changes
+  // (Excludes categories/members so background updates do NOT wipe form inputs while user is typing!)
   useEffect(() => {
+    if (!isOpen) return;
+
     if (expenseToEdit) {
       setDate(expenseToEdit.date);
       setAmount(String(expenseToEdit.amount));
@@ -88,9 +101,9 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
       setPaidBy(expenseToEdit.paidBy);
       setPaymentMethod(expenseToEdit.paymentMethod || 'Cash');
       setDescription(expenseToEdit.description || '');
-      setReceiptUrl(expenseToEdit.receiptUrl);
+      setReceiptUrl(expenseToEdit.receiptUrl || undefined);
     } else {
-      setDate(new Date().toISOString().split('T')[0]);
+      setDate(getTodayLocalDate());
       setAmount('');
       setTitle('');
       setCategory('');
@@ -103,25 +116,64 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
     setShowPaidByDropdown(false);
     setShowPaymentMethodDropdown(false);
     setError(null);
-  }, [expenseToEdit, isOpen, categories, members, userProfile]);
+  }, [isOpen, expenseToEdit]);
 
   if (!isOpen) return null;
 
-  // Handle receipt image upload
-  const handleReceiptUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Compress image to safe size (~100KB) to prevent exceeding Firestore 1MB document limit
+  const compressImage = (file: File, maxDim = 1200, quality = 0.72): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onerror = reject;
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onerror = reject;
+        img.onload = () => {
+          let width = img.width;
+          let height = img.height;
+          if (width > maxDim || height > maxDim) {
+            if (width > height) {
+              height = Math.round((height * maxDim) / width);
+              width = maxDim;
+            } else {
+              width = Math.round((width * maxDim) / height);
+              height = maxDim;
+            }
+          }
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            resolve(e.target?.result as string);
+            return;
+          }
+          ctx.drawImage(img, 0, 0, width, height);
+          resolve(canvas.toDataURL('image/jpeg', quality));
+        };
+        img.src = e.target?.result as string;
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+
+  // Handle receipt image upload with auto-compression
+  const handleReceiptUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.size > 2 * 1024 * 1024) {
-      setError('Receipt image must be smaller than 2MB');
+    if (file.size > 5 * 1024 * 1024) {
+      setError('Receipt image must be smaller than 5MB');
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      setReceiptUrl(reader.result as string);
-    };
-    reader.readAsDataURL(file);
+    try {
+      const compressedDataUrl = await compressImage(file);
+      setReceiptUrl(compressedDataUrl);
+      setError(null);
+    } catch {
+      setError('Could not process receipt image');
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -169,7 +221,7 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
           paidByName,
           paymentMethod: paymentMethod || 'Cash',
           description: description.trim(),
-          ...(receiptUrl ? { receiptUrl } : {}),
+          receiptUrl: receiptUrl || null,
         });
       } else {
         await addExpense({
@@ -181,7 +233,7 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
           paidByName,
           paymentMethod: paymentMethod || 'Cash',
           description: description.trim(),
-          ...(receiptUrl ? { receiptUrl } : {}),
+          receiptUrl: receiptUrl || null,
         });
       }
       setIsSubmitting(false);

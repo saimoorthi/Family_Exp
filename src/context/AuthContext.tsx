@@ -1,7 +1,17 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { doc, getDoc, setDoc, updateDoc, collection, getDocs, query, where } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, collection, getDocs, query, where, onSnapshot } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { UserProfile, UserRole, ActiveTab } from '../types';
+
+/**
+ * Securely hashes a plain-text password using browser-native SHA-256
+ */
+export async function hashPassword(password: string): Promise<string> {
+  const msgUint8 = new TextEncoder().encode(password);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', msgUint8);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
+}
 
 interface AuthContextType {
   userProfile: UserProfile | null;
@@ -54,12 +64,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const adminRef = doc(db, 'users', 'user_admin');
       const snap = await getDoc(adminRef);
       if (!snap.exists()) {
+        const hashedPassword = await hashPassword(DEFAULT_ADMIN_PASS);
         const adminUser: UserProfile = {
           id: 'user_admin',
           username: DEFAULT_ADMIN_USERNAME,
           displayName: 'Family Admin',
           role: 'admin',
-          password: DEFAULT_ADMIN_PASS,
+          password: hashedPassword,
           isActive: true,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
@@ -76,6 +87,34 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setIsLoading(false);
     });
   }, []);
+
+  // Real-time listener for current user's profile status (e.g. if deactivated by admin)
+  useEffect(() => {
+    if (!userProfile?.id) return;
+
+    const unsubscribe = onSnapshot(
+      doc(db, 'users', userProfile.id),
+      (docSnap) => {
+        if (docSnap.exists()) {
+          const data = docSnap.data() as UserProfile;
+          if (data.isActive === false) {
+            setUserProfile(null);
+            localStorage.removeItem(LOCAL_STORAGE_USER_KEY);
+            setAuthError('Your account has been deactivated by the Family Admin.');
+          } else {
+            // Keep local state in sync if role or display name updated
+            setUserProfile((prev) => (prev ? { ...prev, ...data } : data));
+            localStorage.setItem(LOCAL_STORAGE_USER_KEY, JSON.stringify(data));
+          }
+        }
+      },
+      () => {
+        // Silently ignore if offline
+      }
+    );
+
+    return () => unsubscribe();
+  }, [userProfile?.id]);
 
   const login = async (usernameInput: string, passInput: string, rememberMe = true): Promise<boolean> => {
     setAuthError(null);
@@ -95,40 +134,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return false;
     }
 
-    // Default admin fast fallback or initial bootstrap
-    if (
-      cleanUsername === DEFAULT_ADMIN_USERNAME &&
-      (cleanPassword === DEFAULT_ADMIN_PASS || cleanPassword === 'FamilyAdmin123!' || cleanPassword === 'admin')
-    ) {
-      const adminProfile: UserProfile = {
-        id: 'user_admin',
-        username: DEFAULT_ADMIN_USERNAME,
-        displayName: 'Family Admin',
-        role: 'admin',
-        password: DEFAULT_ADMIN_PASS,
-        isActive: true,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
+    const hashedInput = await hashPassword(cleanPassword);
 
-      try {
-        await setDoc(doc(db, 'users', 'user_admin'), adminProfile, { merge: true });
-      } catch (e) {
-        console.warn('Admin local fallback:', e);
+    const checkPasswordMatch = async (user: UserProfile): Promise<boolean> => {
+      if (!user.password) return true;
+      const isMatch = user.password === hashedInput || user.password === cleanPassword;
+      if (isMatch && user.password === cleanPassword) {
+        // Transparently upgrade legacy plaintext password to secure SHA-256 hash in Firestore
+        try {
+          await updateDoc(doc(db, 'users', user.id), { password: hashedInput });
+          user.password = hashedInput;
+        } catch {}
       }
-
-      setUserProfile(adminProfile);
-      localStorage.setItem(LOCAL_STORAGE_USER_KEY, JSON.stringify(adminProfile));
-
-      if (rememberMe) {
-        localStorage.setItem(LOCAL_STORAGE_REMEMBER_USER_KEY, cleanUsername);
-      } else {
-        localStorage.removeItem(LOCAL_STORAGE_REMEMBER_USER_KEY);
-      }
-
-      setIsLoading(false);
-      return true;
-    }
+      return isMatch;
+    };
 
     try {
       // 1. Lookup user in Firestore by username
@@ -140,7 +159,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const directDoc = await getDoc(doc(db, 'users', `user_${cleanUsername}`));
         if (directDoc.exists()) {
           const user = directDoc.data() as UserProfile;
-          if (user.password && user.password !== cleanPassword) {
+          const isMatch = await checkPasswordMatch(user);
+          if (!isMatch) {
             setAuthError('Incorrect password. Please try again.');
             setIsLoading(false);
             return false;
@@ -168,8 +188,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const foundDoc = querySnap.docs[0];
       const foundUser = { id: foundDoc.id, ...foundDoc.data() } as UserProfile;
 
-      // Verify Password
-      if (foundUser.password && foundUser.password !== cleanPassword) {
+      // Verify Password (hashed or legacy plaintext)
+      const isMatch = await checkPasswordMatch(foundUser);
+      if (!isMatch) {
         setAuthError('Incorrect password. Please try again.');
         setIsLoading(false);
         return false;
@@ -201,7 +222,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (cached) {
         const parsed = JSON.parse(cached) as UserProfile;
         if (parsed.username.toLowerCase() === cleanUsername) {
-          if (parsed.password && parsed.password !== cleanPassword) {
+          const isMatch = await checkPasswordMatch(parsed);
+          if (!isMatch) {
             setAuthError('Incorrect password.');
             setIsLoading(false);
             return false;
@@ -247,12 +269,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       const memberId = `user_${cleanUsername}`;
+      const hashedPassword = await hashPassword(pass.trim() || 'family123');
       const newMember: UserProfile = {
         id: memberId,
         username: cleanUsername,
         displayName: name.trim(),
         role,
-        password: pass.trim() || 'family123',
+        password: hashedPassword,
         isActive: true,
         photoUrl: '',
         createdAt: new Date().toISOString(),
@@ -286,7 +309,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         updatePayload.photoUrl = photoUrl;
       }
       if (newPassword && newPassword.trim()) {
-        updatePayload.password = newPassword.trim();
+        updatePayload.password = await hashPassword(newPassword.trim());
       }
       if (preferences?.defaultPaymentMethod !== undefined) {
         updatePayload.defaultPaymentMethod = preferences.defaultPaymentMethod;
