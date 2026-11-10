@@ -2560,11 +2560,11 @@ export const SettingsView: React.FC = () => {
                 <div>
                   <label className="block text-[11px] font-bold text-slate-600 mb-1">Release Notes & Version Log</label>
                   <textarea
-                    rows={3}
+                    rows={5}
                     value={aboutNotesInput}
                     onChange={(e) => setAboutNotesInput(e.target.value)}
                     placeholder="Describe latest release improvements and changes..."
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none font-medium"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium"
                   />
                 </div>
 
@@ -2623,7 +2623,7 @@ export const SettingsView: React.FC = () => {
                   <span>Version {familySettings.appVersion || '1.0.0'}</span>
                 </div>
 
-                <p className="text-xs text-slate-600 mt-3.5 leading-relaxed text-left bg-slate-50 p-3 rounded-xl border border-slate-100">
+                <p className="text-xs text-slate-600 mt-3.5 leading-relaxed text-left bg-slate-50 p-3 rounded-xl border border-slate-100 whitespace-pre-line">
                   {familySettings.aboutDescription ||
                     'Designed exclusively for family members to record daily expenses, track deposits and contributions, and preserve family financial wellness with offline synchronisation.'}
                 </p>
@@ -2634,7 +2634,7 @@ export const SettingsView: React.FC = () => {
                     <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
                     <span>Version Details & Release Notes</span>
                   </div>
-                  <p className="text-[11px] text-slate-500 leading-normal">
+                  <p className="text-[11px] text-slate-500 leading-normal whitespace-pre-line">
                     {familySettings.releaseNotes ||
                       'Initial release featuring multi-member ledger, offline capability, instant analytics, deposit tracking, customizable payment methods and deposit types.'}
                   </p>

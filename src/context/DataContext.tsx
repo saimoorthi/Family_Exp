@@ -303,8 +303,12 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         snapshot.forEach((docSnap) => {
           list.push({ id: docSnap.id, ...docSnap.data() } as Expense);
         });
-        // Sort newest first
-        list.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        // Sort newest first (descending: date first, then createdAt)
+        list.sort((a, b) => {
+          const dateDiff = (b.date || '').localeCompare(a.date || '');
+          if (dateDiff !== 0) return dateDiff;
+          return (b.createdAt || '').localeCompare(a.createdAt || '');
+        });
         setExpenses(list);
         saveCachedExpenses(list);
       },
@@ -321,7 +325,12 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         snapshot.forEach((docSnap) => {
           list.push({ id: docSnap.id, ...docSnap.data() } as Deposit);
         });
-        list.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        // Sort newest first (descending: date first, then createdAt)
+        list.sort((a, b) => {
+          const dateDiff = (b.date || '').localeCompare(a.date || '');
+          if (dateDiff !== 0) return dateDiff;
+          return (b.createdAt || '').localeCompare(a.createdAt || '');
+        });
         setDeposits(list);
         saveCachedDeposits(list);
       },

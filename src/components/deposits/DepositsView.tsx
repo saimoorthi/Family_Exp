@@ -36,12 +36,15 @@ export const DepositsView: React.FC<DepositsViewProps> = ({ onOpenAddModal }) =>
   const availableDepositTypes =
     depositTypes && depositTypes.length > 0 ? depositTypes.map((dt) => dt.name) : DEPOSIT_TYPES;
 
-  // Helper to get first and last day of current month (YYYY-MM-DD)
+  // Helper to get first and last day of current month (YYYY-MM-DD) in local calendar
   const getCurrentMonthBounds = () => {
     const now = new Date();
-    const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
-    const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
-    return { from: firstDay, to: lastDay };
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const from = `${year}-${month}-01`;
+    const lastDay = new Date(year, now.getMonth() + 1, 0).getDate();
+    const to = `${year}-${month}-${String(lastDay).padStart(2, '0')}`;
+    return { from, to };
   };
 
   const initialBounds = getCurrentMonthBounds();
@@ -123,7 +126,11 @@ export const DepositsView: React.FC<DepositsViewProps> = ({ onOpenAddModal }) =>
         }
         return true;
       })
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      .sort((a, b) => {
+        const dateDiff = (b.date || '').localeCompare(a.date || '');
+        if (dateDiff !== 0) return dateDiff;
+        return (b.createdAt || '').localeCompare(a.createdAt || '');
+      });
   }, [deposits, fromDate, toDate, selectedDepositType, selectedMember]);
 
   // Financial summary for filtered selection

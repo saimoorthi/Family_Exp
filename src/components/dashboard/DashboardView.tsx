@@ -249,7 +249,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
   const totalYearlyExpenses = yearlyExpenseData.reduce((sum, m) => sum + m.expenses, 0);
 
-  // Combined Recent Transactions (Maximum 10 entries)
+  // Combined Recent Transactions (Maximum 10 entries, descending order: newest data/entry first)
   const combinedRecent = [
     ...expenses.map((e) => ({
       ...e,
@@ -263,7 +263,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       category: 'Deposit',
     })),
   ]
-    .sort((a, b) => new Date(b.displayDate).getTime() - new Date(a.displayDate).getTime())
+    .sort((a, b) => {
+      const dateDiff = (b.displayDate || '').localeCompare(a.displayDate || '');
+      if (dateDiff !== 0) return dateDiff;
+      return (b.createdAt || '').localeCompare(a.createdAt || '');
+    })
     .slice(0, 10);
 
   return (

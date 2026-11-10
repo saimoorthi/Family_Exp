@@ -105,7 +105,11 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({ onOpenAddModal }) =>
 
         return true;
       })
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      .sort((a, b) => {
+        const dateDiff = (b.date || '').localeCompare(a.date || '');
+        if (dateDiff !== 0) return dateDiff;
+        return (b.createdAt || '').localeCompare(a.createdAt || '');
+      });
   }, [expenses, fromDate, toDate, selectedCategory, selectedMember]);
 
   // Financial summary for filtered selection
@@ -356,7 +360,7 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({ onOpenAddModal }) =>
 
       {/* 3. Expense List (Max 10 per page, Compact - Remarks removed) */}
       {paginatedExpenses.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
           {paginatedExpenses.map((exp) => {
             const catObj = categories.find(
               (c) => c.name.toLowerCase() === exp.category.toLowerCase()
@@ -368,108 +372,105 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({ onOpenAddModal }) =>
             return (
               <div
                 key={exp.id}
-                className="bg-white rounded-3xl p-4 shadow-2xs border border-slate-100 hover:shadow-md transition flex flex-col justify-between"
+                className="bg-white rounded-2xl p-3 shadow-2xs border border-slate-100 hover:shadow-md transition flex flex-col justify-between gap-2"
               >
-                <div>
-                  {/* Top line: Category pill, payment method, date */}
-                  <div className="flex items-center justify-between gap-2 mb-2">
-                    <span
-                      className="text-[11px] font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1.5"
+                {/* Main Row: Icon, Title & Metadata, Amount & Date */}
+                <div className="flex items-center justify-between gap-2.5">
+                  <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                    {/* Compact Category Icon */}
+                    <div
+                      className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 shadow-2xs"
                       style={{
-                        backgroundColor: `${color}18`,
+                        backgroundColor: `${color}15`,
                         color: color,
                       }}
                     >
-                      <span
-                        className="w-2 h-2 rounded-full"
-                        style={{ backgroundColor: color }}
-                      />
-                      {exp.category}
-                    </span>
+                      <CategoryIcon name={iconName} color={color} size={16} />
+                    </div>
 
-                    <div className="flex items-center gap-2 text-slate-400 text-xs">
-                      {exp.paymentMethod && (
-                        <span className="bg-slate-100 text-slate-600 px-2 py-0.5 rounded-md text-[10px] font-semibold">
-                          {exp.paymentMethod}
+                    {/* Title + Metadata Subline */}
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5">
+                        <h3 className="text-xs sm:text-sm font-bold text-slate-900 leading-tight truncate">
+                          {exp.title}
+                        </h3>
+                        {/* E symbol if edited */}
+                        {exp.isEdited && (
+                          <span
+                            className="inline-flex items-center justify-center w-3.5 h-3.5 rounded text-[9px] font-extrabold bg-amber-100 text-amber-900 border border-amber-300 shrink-0"
+                            title="Edited after submission"
+                          >
+                            E
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1.5 text-[11px] text-slate-500 mt-0.5 truncate">
+                        <span className="font-medium text-slate-600 truncate">{exp.paidByName}</span>
+                        <span className="text-slate-300">•</span>
+                        <span
+                          className="font-bold shrink-0 truncate max-w-[90px]"
+                          style={{ color }}
+                        >
+                          {exp.category}
                         </span>
-                      )}
-                      <span className="font-semibold text-slate-500">{formatDate(exp.date)}</span>
+                        {exp.paymentMethod && (
+                          <>
+                            <span className="text-slate-300">•</span>
+                            <span className="bg-slate-100 text-slate-600 px-1.5 py-0.2 rounded text-[9px] font-semibold shrink-0">
+                              {exp.paymentMethod}
+                            </span>
+                          </>
+                        )}
+                      </div>
                     </div>
                   </div>
 
-                  {/* Main Info with E symbol if edited */}
-                  <div className="flex items-start justify-between gap-3 mt-1">
-                    <div className="flex items-start gap-3 min-w-0">
-                      <div
-                        className="w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 mt-0.5 shadow-2xs"
-                        style={{
-                          backgroundColor: `${color}15`,
-                          color: color,
-                        }}
-                      >
-                        <CategoryIcon name={iconName} color={color} size={18} />
-                      </div>
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <h3 className="text-sm font-bold text-slate-900 leading-snug truncate">
-                            {exp.title}
-                          </h3>
-                          {/* E symbol if edited */}
-                          {exp.isEdited && (
-                            <span
-                              className="inline-flex items-center justify-center w-4 h-4 rounded text-[10px] font-extrabold bg-amber-100 text-amber-900 border border-amber-300 shrink-0"
-                              title="Edited after submission"
-                            >
-                              E
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-xs text-slate-500 mt-0.5">
-                          Paid by <span className="font-semibold text-slate-700">{exp.paidByName}</span>
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="text-right shrink-0">
-                      <span className="text-base font-extrabold text-slate-900">
-                        {formatCurrency(exp.amount)}
-                      </span>
-                    </div>
+                  {/* Right side: Amount + Date */}
+                  <div className="text-right shrink-0">
+                    <span className="text-sm sm:text-base font-extrabold text-slate-900 block leading-tight">
+                      {formatCurrency(exp.amount)}
+                    </span>
+                    <span className="text-[10px] font-semibold text-slate-400 block mt-0.5">
+                      {formatDate(exp.date)}
+                    </span>
                   </div>
                 </div>
 
-                {/* Footer with Eye (View), Edit, and Receipt info */}
-                <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
-                  {exp.receiptUrl ? (
-                    <button
-                      onClick={() => setPreviewReceipt(exp.receiptUrl || null)}
-                      className="text-indigo-600 hover:text-indigo-800 font-semibold flex items-center gap-1 cursor-pointer"
-                    >
-                      <FileImage className="w-3.5 h-3.5" />
-                      <span>Receipt</span>
-                    </button>
-                  ) : (
-                    <span className="text-slate-300 text-[11px]">No receipt</span>
-                  )}
+                {/* Slim Compact Action Bar */}
+                <div className="pt-2 border-t border-slate-100/80 flex items-center justify-between text-xs">
+                  {/* Left: Receipt link if exists */}
+                  <div>
+                    {exp.receiptUrl ? (
+                      <button
+                        onClick={() => setPreviewReceipt(exp.receiptUrl || null)}
+                        className="text-indigo-600 hover:text-indigo-800 text-[11px] font-bold flex items-center gap-1 cursor-pointer"
+                      >
+                        <FileImage className="w-3 h-3" />
+                        <span>Receipt</span>
+                      </button>
+                    ) : (
+                      <span className="text-slate-300 text-[10px]">No receipt</span>
+                    )}
+                  </div>
 
-                  {/* Actions: View (Eye) + Edit + Delete (Admin only) */}
+                  {/* Right: Actions */}
                   <div className="flex items-center gap-1">
                     <button
                       onClick={() => setViewingExpense(exp)}
-                      className="p-1.5 text-slate-500 hover:text-indigo-600 rounded-lg hover:bg-indigo-50 cursor-pointer transition flex items-center gap-1 font-semibold text-xs"
-                      title="View full expense details and edit history"
+                      className="px-2 py-1 text-slate-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg cursor-pointer transition flex items-center gap-1 font-semibold text-[11px]"
+                      title="View full expense details"
                     >
-                      <Eye className="w-3.5 h-3.5" />
+                      <Eye className="w-3 h-3 text-slate-400" />
                       <span>View</span>
                     </button>
 
                     {canEdit && (
                       <button
                         onClick={() => setEditingExpense(exp)}
-                        className="p-1.5 text-slate-500 hover:text-indigo-600 rounded-lg hover:bg-indigo-50 cursor-pointer transition flex items-center gap-1 font-semibold text-xs"
+                        className="px-2 py-1 text-slate-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg cursor-pointer transition flex items-center gap-1 font-semibold text-[11px]"
                         title="Edit expense"
                       >
-                        <Edit2 className="w-3.5 h-3.5" />
+                        <Edit2 className="w-3 h-3 text-slate-400" />
                         <span>Edit</span>
                       </button>
                     )}
@@ -477,10 +478,10 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({ onOpenAddModal }) =>
                     {isAdmin && (
                       <button
                         onClick={() => setDeletingId(exp.id)}
-                        className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 cursor-pointer transition flex items-center gap-1 font-semibold text-xs"
-                        title="Delete expense (Admin only)"
+                        className="px-2 py-1 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg cursor-pointer transition flex items-center gap-1 font-semibold text-[11px]"
+                        title="Delete expense"
                       >
-                        <Trash2 className="w-3.5 h-3.5" />
+                        <Trash2 className="w-3 h-3 text-slate-400" />
                         <span className="hidden sm:inline">Delete</span>
                       </button>
                     )}
