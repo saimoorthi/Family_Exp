@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Fingerprint, Delete, Lock, LogOut } from 'lucide-react';
 import { useAuth, hashPassword } from '../../context/AuthContext';
+import { registerBiometricCredential, verifyBiometricCredential, isBiometricSupported } from '../../lib/biometrics';
 
 interface AppLockScreenProps {
   onUnlock: () => void;
@@ -30,11 +31,13 @@ export const AppLockScreen: React.FC<AppLockScreenProps> = ({ onUnlock }) => {
     }
 
     const isBioEnabled = localStorage.getItem(`family_app_lock_biometric_${userProfile.id}`) === 'true';
-    if (isBioEnabled && window.PublicKeyCredential) {
-      window.PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable?.()
+    if (isBioEnabled) {
+      isBiometricSupported()
         .then((available) => {
           setBiometricAvailable(available);
-          if (available) {
+          const credId = localStorage.getItem(`family_app_lock_cred_id_${userProfile.id}`);
+          // Only auto-trigger if credential is already enrolled on this device
+          if (available && credId) {
             triggerBiometricUnlock();
           }
         })
@@ -62,38 +65,40 @@ export const AppLockScreen: React.FC<AppLockScreenProps> = ({ onUnlock }) => {
   }, [lockoutRemaining, userProfile?.id]);
 
   const triggerBiometricUnlock = async () => {
-    if (lockoutRemaining > 0) return;
+    if (lockoutRemaining > 0 || !userProfile?.id) return;
     try {
       setErrorMsg(null);
-      if (window.PublicKeyCredential && navigator.credentials) {
-        const challenge = new Uint8Array(32);
-        window.crypto.getRandomValues(challenge);
+      const credKey = `family_app_lock_cred_id_${userProfile.id}`;
+      const savedCredId = localStorage.getItem(credKey);
 
-        const assertion = await navigator.credentials.get({
-          publicKey: {
-            challenge,
-            timeout: 60000,
-            userVerification: 'required',
-            rpId: window.location.hostname || undefined,
-          },
-        });
+      if (!savedCredId) {
+        // No passkey registered yet on this device - register fingerprint now
+        const newCredId = await registerBiometricCredential(
+          userProfile.id,
+          userProfile.displayName || 'Family Member'
+        );
+        localStorage.setItem(credKey, newCredId);
+        localStorage.setItem(`family_app_lock_last_unlocked_${userProfile.id}`, Date.now().toString());
+        localStorage.removeItem(`family_app_lock_failed_attempts_${userProfile.id}`);
+        onUnlock();
+        return;
+      }
 
-        if (assertion) {
-          if (userProfile?.id) {
-            localStorage.setItem(`family_app_lock_last_unlocked_${userProfile.id}`, Date.now().toString());
-            localStorage.removeItem(`family_app_lock_failed_attempts_${userProfile.id}`);
-          }
-          onUnlock();
-        } else {
-          setErrorMsg('Biometric verification failed. Please enter your PIN.');
-        }
+      // Verify enrolled biometric passkey
+      const success = await verifyBiometricCredential(savedCredId);
+      if (success) {
+        localStorage.setItem(`family_app_lock_last_unlocked_${userProfile.id}`, Date.now().toString());
+        localStorage.removeItem(`family_app_lock_failed_attempts_${userProfile.id}`);
+        onUnlock();
       } else {
-        setErrorMsg('Biometrics not supported on this device.');
+        setErrorMsg('Biometric verification failed. Please enter your PIN.');
       }
     } catch (err: unknown) {
       const errMsg = err instanceof Error ? err.message : '';
       if (errMsg.toLowerCase().includes('cancel') || errMsg.toLowerCase().includes('abort')) {
-        setErrorMsg('Biometric verification cancelled.');
+        setErrorMsg('Biometric cancelled. Please enter your PIN.');
+      } else if (errMsg.includes('not supported') || errMsg.includes('NotAllowedError')) {
+        setErrorMsg('Biometric not available in this browser. Enter PIN.');
       } else {
         setErrorMsg('Biometric verification failed. Please enter your PIN.');
       }

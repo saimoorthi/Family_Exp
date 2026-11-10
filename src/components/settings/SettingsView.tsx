@@ -36,6 +36,7 @@ import {
 } from 'lucide-react';
 import { useAuth, hashPassword } from '../../context/AuthContext';
 import { useData } from '../../context/DataContext';
+import { registerBiometricCredential } from '../../lib/biometrics';
 import { UserProfile, UserRole, CategoryItem, PaymentMethodItem, DepositTypeItem, ActiveTab } from '../../types';
 import { SUPPORTED_CURRENCIES } from '../../lib/constants';
 import { CategoryIcon, searchLucideIcons, ICON_REGISTRY, SearchedIconItem } from '../common/CategoryIcon';
@@ -519,6 +520,40 @@ export const SettingsView: React.FC = () => {
     setIsEditingAbout(false);
   };
 
+  // Biometric toggle handler: trigger enrollment on enable
+  const handleBiometricToggle = async (enabled: boolean) => {
+    if (!enabled) {
+      setAppLockBiometric(false);
+      if (userProfile?.id) {
+        localStorage.removeItem(`family_app_lock_cred_id_${userProfile.id}`);
+      }
+      return;
+    }
+
+    try {
+      setAppLockFeedback('Touch your fingerprint sensor or scan face to register passkey...');
+      const credId = await registerBiometricCredential(
+        userProfile?.id || 'user',
+        userProfile?.displayName || 'Family Member'
+      );
+      if (userProfile?.id) {
+        localStorage.setItem(`family_app_lock_cred_id_${userProfile.id}`, credId);
+      }
+      setAppLockBiometric(true);
+      setAppLockFeedback('Biometric passkey enrolled successfully!');
+      setTimeout(() => setAppLockFeedback(null), 2500);
+    } catch (err: unknown) {
+      const errMsg = err instanceof Error ? err.message : '';
+      setAppLockBiometric(false);
+      if (errMsg.toLowerCase().includes('cancel') || errMsg.toLowerCase().includes('abort')) {
+        setAppLockFeedback('Biometric enrollment cancelled.');
+      } else {
+        setAppLockFeedback('Biometrics not available or not supported in this browser.');
+      }
+      setTimeout(() => setAppLockFeedback(null), 3500);
+    }
+  };
+
   // Save App Lock PIN & Settings - scoped to userProfile.id
   const handleSaveAppLock = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -565,6 +600,7 @@ export const SettingsView: React.FC = () => {
       localStorage.setItem(lockKey, 'false');
       localStorage.removeItem(pinKey);
       localStorage.setItem(bioKey, 'false');
+      localStorage.removeItem(`family_app_lock_cred_id_${userProfile.id}`);
 
       try {
         localStorage.removeItem('family_app_lock_enabled');
@@ -2768,7 +2804,7 @@ export const SettingsView: React.FC = () => {
                       <input
                         type="checkbox"
                         checked={appLockBiometric}
-                        onChange={(e) => setAppLockBiometric(e.target.checked)}
+                        onChange={(e) => handleBiometricToggle(e.target.checked)}
                         className="sr-only peer"
                       />
                       <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600"></div>
@@ -2785,6 +2821,9 @@ export const SettingsView: React.FC = () => {
                       localStorage.removeItem('family_app_lock_enabled');
                       localStorage.removeItem('family_app_lock_pin');
                       localStorage.removeItem('family_app_lock_biometric');
+                      if (userProfile?.id) {
+                        localStorage.removeItem(`family_app_lock_cred_id_${userProfile.id}`);
+                      }
                       setAppLockEnabled(false);
                       setAppLockBiometric(false);
                       setPinInput('');

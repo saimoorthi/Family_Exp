@@ -58,25 +58,38 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isLoading, setIsLoading] = useState(true);
   const [authError, setAuthError] = useState<string | null>(null);
 
-  // Initialize Admin Account in Firestore if missing
+  // Initialize Admin Account in Firestore ONLY if database is brand new and has no admins
   const ensureAdminExists = async () => {
     try {
-      const adminRef = doc(db, 'users', 'user_admin');
-      const snap = await getDoc(adminRef);
-      if (!snap.exists()) {
-        const hashedPassword = await hashPassword(DEFAULT_ADMIN_PASS);
-        const adminUser: UserProfile = {
-          id: 'user_admin',
-          username: DEFAULT_ADMIN_USERNAME,
-          displayName: 'Family Admin',
-          role: 'admin',
-          password: hashedPassword,
-          isActive: true,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        };
-        await setDoc(adminRef, adminUser);
+      // 1. Check if ANY admin already exists in the users collection
+      const adminQuery = query(collection(db, 'users'), where('role', '==', 'admin'));
+      const adminSnaps = await getDocs(adminQuery);
+      if (!adminSnaps.empty) {
+        // At least one admin account already exists. Never resurrect deleted admin accounts!
+        return;
       }
+
+      // 2. Check if the users collection has any accounts at all
+      const allUsersSnap = await getDocs(collection(db, 'users'));
+      if (!allUsersSnap.empty) {
+        // Accounts already exist in the system. Do not auto-create a default admin.
+        return;
+      }
+
+      // 3. Brand new database only: create initial default admin
+      const adminRef = doc(db, 'users', 'user_admin');
+      const hashedPassword = await hashPassword(DEFAULT_ADMIN_PASS);
+      const adminUser: UserProfile = {
+        id: 'user_admin',
+        username: DEFAULT_ADMIN_USERNAME,
+        displayName: 'Family Admin',
+        role: 'admin',
+        password: hashedPassword,
+        isActive: true,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      await setDoc(adminRef, adminUser);
     } catch (e) {
       console.warn('Initial admin check warning (offline mode or rules):', e);
     }
